@@ -1,0 +1,17 @@
+# APP PORT
+APP_PORT=                                # example: 6001
+FE_URL=                                  # example: http://localhost:3000
+
+# DATABASE
+DATABASE_TYPE=                           # example: postgres
+DATABASE_HOST=                           # example: localhost
+DATABASE_PORT=                           # example: 5432
+DATABASE_USERNAME=                       # example: postgres
+DATABASE_PASSWORD=
+DATABASE_NAME=                           # example: fpt-rsu
+
+# JWT
+JWT_ACCESS_TOKEN_EXPIRATION_TIME=        # example: 1d
+JWT_REFRESH_TOKEN_EXPIRATION_TIME=       # example: 3d
+JWT_SECRET_ACCESS_TOKEN=
+JWT_SECRET_REFRESH_TOKEN=
