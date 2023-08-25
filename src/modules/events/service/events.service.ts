@@ -24,6 +24,7 @@ import { randomChoice, randomNumber } from 'src/util/randomNumber';
 import * as fs from 'fs-extra';
 import * as fastcsv from 'fast-csv';
 import { exportDataToZip } from 'src/util/exportData';
+import { IgnoreEventsService } from 'src/modules/users/service/ignore-events.service';
 
 @Injectable()
 export class EventsService {
@@ -34,7 +35,8 @@ export class EventsService {
     @InjectRepository(AvailabilityEvents)
     private availabilityEventsRepository: Repository<AvailabilityEvents>,
     private nodeService: NodeService,
-  ) {}
+    private ignoreEventsService: IgnoreEventsService
+  ) { }
 
   async saveEvent(type: number, events: any) {
     try {
@@ -947,16 +949,16 @@ export class EventsService {
               ? null
               : networkSpeed
             : (() => {
-                throw new Error();
-              })();
+              throw new Error();
+            })();
         event.network_usage =
           typeof networkUsage !== 'undefined'
             ? Number.isNaN(networkUsage)
               ? null
               : networkUsage
             : (() => {
-                throw new Error();
-              })();
+              throw new Error();
+            })();
         event.created_at = convertToUTC(record[Event_Key.OCCURRENCE_TIME]);
         event.detail = await this.defineErrorMessage(1, event);
         event.status = event.detail != '' ? 2 : 1;
@@ -1030,5 +1032,68 @@ export class EventsService {
       }
     }
     return { validEvents: validEvents, inValidEvents: invalidEventIndexes };
+  }
+
+  async pushNotification(username: any) {
+    const lastUpdated = new Date();
+    const now = new Date();
+    lastUpdated.setMinutes(lastUpdated.getMinutes() - 30);
+    const listIgnoreEvents = await this.ignoreEventsService.getIgnoreEventByUsername(username);
+
+    let avaiEventsQuery = this.availabilityEventsRepository
+      .createQueryBuilder('events')
+      .select([
+        'events.id as id',
+        'nodes.custom_id as "nodeId"',
+        'events.detail as detail',
+        'events.created_at as "createAt"'
+      ])
+      .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
+      .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
+        lastUpdated,
+        now,
+      })
+      .andWhere('events.status = 2')
+      .orderBy('events.created_at', 'DESC');
+
+    if (listIgnoreEvents && listIgnoreEvents.length > 0) {
+      avaiEventsQuery = avaiEventsQuery.andWhere('events.id NOT IN (:...listIgnoreEvents)', { listIgnoreEvents });
+    }
+
+    const avaiEvents = await avaiEventsQuery.getRawMany();
+
+    let commEventsQuery = this.communicationEventsRepository
+      .createQueryBuilder('events')
+      .select([
+        'events.id as id',
+        'nodes.custom_id as "nodeId"',
+        'events.detail as detail',
+        'events.created_at as "createAt"'
+      ])
+      .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
+      .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
+        lastUpdated,
+        now,
+      })
+      .andWhere('events.status = 2')
+      .orderBy('events.created_at', 'DESC');
+
+    if (listIgnoreEvents && listIgnoreEvents.length > 0) {
+      commEventsQuery = commEventsQuery.andWhere('events.id NOT IN (:...listIgnoreEvents)', { listIgnoreEvents });
+    }
+
+    const commEvents = await commEventsQuery.getRawMany();
+
+    const queryResults = [...avaiEvents, ...commEvents];
+    const cleanResult = queryResults.map((event) => {
+      return {
+        id: event.id,
+        nodeId: event.nodeId,
+        detail: event.detail,
+        status: event.status,
+        createAt: event.createAt,
+      };
+    });
+    return cleanResult;
   }
 }

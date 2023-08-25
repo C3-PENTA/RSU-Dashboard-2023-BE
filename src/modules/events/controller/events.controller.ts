@@ -334,4 +334,20 @@ export class EventsController {
   ) {
     return this.eventsService.generateData(res, typeEvent, start, end);
   }
+
+  @Get('notifications')
+  @ApiQuery({ name: 'username', required: true })
+  @ApiOperation({
+    description: 'get notfications',
+  })
+  @ApiOkResponse({
+    status: 200,
+    description: '',
+  })
+  async getNotifications(@Query('username') username: string) {
+    const results = await this.eventsService.pushNotification(username)
+    return {
+      "notification": results,
+    }
+  }
 }

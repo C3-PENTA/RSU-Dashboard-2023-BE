@@ -7,7 +7,7 @@ import {
   Delete,
   UseGuards,
   Request,
-  Res,
+  Post,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -19,11 +19,13 @@ import {
 import { UsersService } from '../service/users.service';
 import { CreateUserDto } from '../dto/createUser.dto';
 import { UpdateUserDto } from '../dto/updateUser.dto';
+import { CreateIgnoreEventsDto } from '../dto/createIgnoreEvent.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.guard';
 import { USER_ROLE, Roles } from 'src/modules/role/decorator/role.decorator';
 import { RolesGuard } from 'src/modules/auth/guard/role.guard';
 import { AuthService } from 'src/modules/auth/service/auth.service';
+import { IgnoreEventsService } from '../service/ignore-events.service';
 
 @ApiTags('Users')
 @Roles(USER_ROLE.OPERATOR, USER_ROLE.MANAGER)
@@ -31,7 +33,7 @@ import { AuthService } from 'src/modules/auth/service/auth.service';
 @Controller('api/users')
 export class UsersController {
   private saltOrRounds = 10;
-  constructor(private usersService: UsersService, private authService: AuthService) {}
+  constructor(private usersService: UsersService, private authService: AuthService, private ignoreEventsService: IgnoreEventsService) {}
 
   @Get('list')
   @ApiOperation({
@@ -95,4 +97,17 @@ export class UsersController {
   deleteUser(@Param('id') id: string) {
     return this.usersService.deleteUser(id);
   }
+
+  @Post('/ignore_event')
+  @ApiOperation({
+    description: 'Add ignore event for user',
+  })
+  @ApiOkResponse({
+    status: 200,
+    description: 'Create succeeded',
+  })
+  async createIgnoreEvent(@Body() ignoreEventsData: CreateIgnoreEventsDto[]) {
+    return this.ignoreEventsService.createIgnoreEvent(ignoreEventsData);
+  }
+
 }

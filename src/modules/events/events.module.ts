@@ -6,12 +6,14 @@ import { EventsService } from './service/events.service';
 import { CommunicationEvents } from './entity/communication-events.entity';
 import { AvailabilityEvents } from './entity/availability-events.entity';
 import { NodeService } from '../nodes/service/nodes.service';
+import { IgnoreEventsService } from '../users/service/ignore-events.service';
+import { IgnoreEvents } from '../users/entity/ignore-events.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Nodes, CommunicationEvents, AvailabilityEvents]),
+    TypeOrmModule.forFeature([Nodes, CommunicationEvents, AvailabilityEvents, IgnoreEvents]),
   ],
   controllers: [EventsController],
-  providers: [EventsService, NodeService],
+  providers: [EventsService, NodeService, IgnoreEventsService],
 })
 export class EventsModule {}
