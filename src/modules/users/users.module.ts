@@ -7,13 +7,16 @@ import { UsersController } from './controller/users.controller';
 import { UserRoles } from '../role/entity/role.entity';
 import { AuthService } from '../auth/service/auth.service';
 import { JwtService } from '@nestjs/jwt';
+import { IgnoreEventsService } from './service/ignore-events.service';
+import { IgnoreEvents } from './entity/ignore-events.entity';
 
 
 @Module({
   imports: [TypeOrmModule.forFeature([Users]), 
             TypeOrmModule.forFeature([UserRoles]),
+            TypeOrmModule.forFeature([IgnoreEvents])
             ],
-  providers: [UsersService, RoleService, AuthService, JwtService],
+  providers: [UsersService, RoleService, IgnoreEventsService, JwtService, AuthService],
   controllers: [UsersController],
   exports: [UsersService],
 })
