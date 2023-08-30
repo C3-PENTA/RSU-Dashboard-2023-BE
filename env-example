@@ -1,5 +1,6 @@
 # APP PORT
 APP_PORT=                                # example: 6001
+APP_ENV=                                 # example: DEV/PROD
 FE_URL=                                  # example: http://localhost:3000
 
 # DATABASE

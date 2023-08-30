@@ -21,18 +21,4 @@ export class NodeController {
   async getAllNodes() {
     return this.nodeService.findAll();
   }
-
-  @Get(API_PATH.GET_RSU_USAGE)
-  @ApiOperation({
-    description: '',
-  })
-  @ApiOkResponse({
-    status: 200,
-    description: ''
-  })
-  @ApiQuery({ name: 'type', required: true })
-  @ApiQuery({ name: 'period', required: true })
-  async getRSUUsage(@Query('type') type: string, @Query('period') period: string) {
-    return await this.nodeService.getRSUUsage(type, period);
-  }
 }

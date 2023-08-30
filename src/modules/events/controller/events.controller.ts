@@ -22,8 +22,6 @@ import {
 import { API_PATH } from 'src/constants';
 import { EventsService } from '../service/events.service';
 import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.guard';
-import * as json2csv from 'json2csv';
-import * as archiver from 'archiver';
 import { ExportDataDto } from '../dto/exportData.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { convertToUTC } from 'src/util/convertTimeZone';
@@ -127,7 +125,7 @@ export class EventsController {
     status: 200,
     description: '',
   })
-  @ApiQuery({ name: 'time_range', required: true })
+  @ApiQuery({ name: 'time_range', required: true, enum: ['all', 'hour_ago']})
   async getEventsSummary(@Query('time_range') time_range: string) {
     const result = await this.eventsService.getEventsSummary(time_range);
     return {
@@ -349,5 +347,19 @@ export class EventsController {
     return {
       "notification": results,
     }
+  }
+
+  @Get(API_PATH.GET_RSU_USAGE)
+  @ApiOperation({
+    description: '',
+  })
+  @ApiOkResponse({
+    status: 200,
+    description: ''
+  })
+  @ApiQuery({ name: 'type', required: true, enum: ['ram', 'cpu', 'disk'] })
+  @ApiQuery({ name: 'period', required: true, enum: ['month', 'date', 'hour'] })
+  async getRSUUsage(@Query('type') type: string, @Query('period') period: string) {
+    return await this.eventsService.getRSUUsage(type, period);
   }
 }

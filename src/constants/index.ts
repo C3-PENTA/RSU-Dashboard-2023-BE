@@ -4,7 +4,7 @@ export const API_PATH = {
   GET_DASHBOARD: '/node/dashboard',
   GET_USAGE: '/node/usage',
   GEN_USAGE: '/node/add-usage',
-  GET_RSU_USAGE: '/node/rsu-usage',
+  GET_RSU_USAGE: '/rsu-usage',
   GET_RSU_INFORMATION: ''
 };
 

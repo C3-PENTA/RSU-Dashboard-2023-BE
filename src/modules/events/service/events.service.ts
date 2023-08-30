@@ -326,16 +326,16 @@ export class EventsService {
         communicationErrorEvents,
       ] = await Promise.all([
         availabilityNormal
-          .andWhere('created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('avai_events.created_at > :timestamp', { timestamp: hourAgo })
           .getRawMany(),
         availabilityError
-          .andWhere('created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('avai_events.created_at > :timestamp', { timestamp: hourAgo })
           .getRawMany(),
         communicationNormal
-          .andWhere('created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('comm_events.created_at > :timestamp', { timestamp: hourAgo })
           .getRawMany(),
         communicationError
-          .andWhere('created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('comm_events.created_at > :timestamp', { timestamp: hourAgo })
           .getRawMany(),
       ]);
 
@@ -1095,5 +1095,66 @@ export class EventsService {
       };
     });
     return cleanResult;
+  }
+
+  async getRSUUsage(type: string, period: string): Promise<any> {
+    const listNodeLive = (await this.nodeService.findAll()).nodes;
+    
+    let result = [];
+    await Promise.all(
+      (await listNodeLive).map(async (rsu) => {
+        try {
+          const fromDate = new Date();
+          const now = new Date();
+
+          let rsuUsage;
+
+          // Last 30 days
+          if (period === 'month') {
+            fromDate.setDate(fromDate.getDate() - 30);
+  
+            rsuUsage = await this.availabilityEventsRepository
+              .createQueryBuilder('event')
+              .select(`DATE(event.created_at) AS timestamp, AVG(event.${type}_usage) AS average`)
+              .where('event.node_id = :rsuId AND event.created_at >= :fromDate  AND event.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .groupBy('DATE(event.created_at)')
+              .orderBy('timestamp')
+              .execute() as Promise<{ date: string, average: number }[]>;
+          }
+          // Last 24 hours
+          if (period === 'date') {
+            fromDate.setHours(fromDate.getHours() - 24);
+
+            rsuUsage = await this.availabilityEventsRepository
+              .createQueryBuilder('usage')
+              .select(`DATE_TRUNC('hour', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`)
+              .where('usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .groupBy("DATE_TRUNC('hour', usage.created_at)")
+              .orderBy('timestamp')
+              .execute() as Promise<{ hour: Date, average: number }[]>;
+          }
+          // Last 60 minutes
+          if (period === 'hour') {
+            fromDate.setMinutes(fromDate.getMinutes() - 60);
+
+            rsuUsage = await this.availabilityEventsRepository
+              .createQueryBuilder('usage')
+              .select(`DATE_TRUNC('minute', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`)
+              .where('usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .groupBy("DATE_TRUNC('minute', usage.created_at)")
+              .orderBy('timestamp')
+              .execute() as Promise<{ minute: string, average: number }[]>;
+          }
+          rsuUsage !== undefined && rsuUsage.length !== 0 && result.push({
+            id: rsu.custom_id,
+            usage: rsuUsage,
+          });
+          
+        } catch (error) {
+          console.error(error);
+        } 
+      })
+    );
+    return result.sort((a, b) => a.id.localeCompare(b.id))
   }
 }

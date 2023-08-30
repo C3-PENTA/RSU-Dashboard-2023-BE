@@ -5,10 +5,9 @@ import { NodeController } from './controller/node.controller';
 import { NodeService } from './service/nodes.service';
 import { HttpModule } from '@nestjs/axios';
 import { Nodes } from './entity/nodes.entity';
-import { AvailabilityEvents } from '../events/entity/availability-events.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Nodes, AvailabilityEvents ]), HttpModule],
+  imports: [TypeOrmModule.forFeature([Nodes]), HttpModule],
   controllers: [NodeController],
   providers: [NodeService],
   exports: [NodeService],
