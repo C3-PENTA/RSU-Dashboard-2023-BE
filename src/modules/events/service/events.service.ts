@@ -458,7 +458,7 @@ export class EventsService {
   }
 
 
-  async exportDataToCsv(type: number, eventIds: string[]) {
+  async exportLogData(type: number, eventIds: string[], log: boolean) {
     try {
       if (type == 1) {
         const result = await this.availabilityEventsRepository
@@ -480,7 +480,7 @@ export class EventsService {
           .where({ id: In(eventIds) })
           .getRawMany();
 
-        return result.map((event) => {
+        return log ? result.map((event) => {
           return {
             [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
             [Event_Key.NODE_ID]: event.nodeId,
@@ -489,11 +489,24 @@ export class EventsService {
             [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
             [Event_Key.RAM_USAGE]: event.ramUsage,
             [Event_Key.DISK_USAGE]: event.diskUsage,
-            [Event_Key.NETWORK_SPEED]: event.networkSpeed + ' Mbps',
-            [Event_Key.NETWORK_USAGE]: event.networkUsage + ' Byte',
+            [Event_Key.NETWORK_SPEED]: event.networkSpeed ? event.networkSpeed + ' Mbps' : null,
+            [Event_Key.NETWORK_USAGE]: event.networkUsage ? event.networkUsage + ' Byte' : null,
             [Event_Key.NETWORK_CONNECTION_STATUS]:
               NetworkStatus[event.networkStatus],
             [Event_Key.DETAIL]: event.detail,
+          };
+        }) : result.map((event) => {
+          return {
+            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+            [Event_Key.NODE_ID]: event.nodeId,
+            [Event_Key.CPU_USAGE]: event.cpuUsage,
+            [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
+            [Event_Key.RAM_USAGE]: event.ramUsage,
+            [Event_Key.DISK_USAGE]: event.diskUsage,
+            [Event_Key.NETWORK_SPEED]: event.networkSpeed ? event.networkSpeed + ' Mbps' : null,
+            [Event_Key.NETWORK_USAGE]: event.networkUsage ? event.networkUsage + ' Byte' : null,
+            [Event_Key.NETWORK_CONNECTION_STATUS]:
+              NetworkStatus[event.networkStatus],
           };
         });
       } else if (type == 2) {
@@ -518,7 +531,7 @@ export class EventsService {
           .where({ id: In(eventIds) })
           .getRawMany();
 
-        return result.map((event) => {
+        return log ? result.map((event) => {
           return {
             [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
             [Event_Key.NODE_ID]: event.nodeId,
@@ -531,6 +544,17 @@ export class EventsService {
             [Event_Key.MESSAGE_TYPE]: MessageType[event.messageType],
             [Event_Key.DETAIL]: event.detail,
           };
+        }) : result.map((event) => {
+          return {
+            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+            [Event_Key.NODE_ID]: event.nodeId,
+            [Event_Key.SRC_NODE]: event.srcNode,
+            [Event_Key.DEST_NODE]: event.destNode,
+            [Event_Key.DRIVING_NEGOTIATION_CLASS]:
+              DrivingNegotiationsClass[event.drivingNegotiationsClass],
+            [Event_Key.METHOD]: CommunicationMethod[event.method],
+            [Event_Key.MESSAGE_TYPE]: MessageType[event.messageType],
+          };
         });
       }
     } catch (error) {
@@ -539,6 +563,7 @@ export class EventsService {
     }
   }
 
+  
   async saveBatch(
     records: any,
     typeEvent: number,

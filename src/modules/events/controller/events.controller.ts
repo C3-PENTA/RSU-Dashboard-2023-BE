@@ -25,7 +25,7 @@ import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.gua
 import { ExportDataDto } from '../dto/exportData.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { convertToUTC } from 'src/util/convertTimeZone';
-import { exportDataToCSV, exportDataToZip } from 'src/util/exportData';
+import { exportDataToCSV } from 'src/util/exportData';
 import * as fs from 'fs-extra';
 import * as admZip from 'adm-zip';
 import * as path from 'path';
@@ -165,21 +165,22 @@ export class EventsController {
     return this.eventsService.getNewEvents();
   }
 
-  @Post('export/csv')
-  @ApiOperation({ summary: 'Export data to CSV' })
+  @Post('export/log')
+  @ApiOperation({ summary: 'Export log data to CSV' })
   @ApiBody({ type: ExportDataDto })
   async exportData(
-    @Body() requestBody: { type: number; eventIds: string[] },
+    @Body() requestBody: { type: number; eventIds: string[]; log: boolean },
     @Res() res: Response,
   ) {
     try {
-      const data = await this.eventsService.exportDataToCsv(
+      const data = await this.eventsService.exportLogData(
         requestBody.type,
         requestBody.eventIds,
+        requestBody.log,
       );
-      return exportDataToZip(res, data);
+      return exportDataToCSV(res, data);
     } catch (err) {
-      res.status(500).json({ error: 'Failed to export data.' });
+      res.status(500).json({ error: 'Failed to export log data.' });
     }
   }
 
