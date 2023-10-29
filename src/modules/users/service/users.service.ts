@@ -21,16 +21,16 @@ export class UsersService {
       .createQueryBuilder('users')
       .innerJoinAndSelect(UserRoles, 'user_role', 'user_role.id = users.role ')
       .select([
-        '"users"."id"',
-        '"users"."username"',
-        '"users"."name"',
-        '"users"."email"',
-        'user_role.name as role',
-        '"users"."created_at"',
-        '"users"."updated_at"',
+        'users.id AS id',
+        'users.username AS username',
+        'users.name AS name',
+        'users.email AS email',
+        'user_role.name AS role',
+        'users.created_at as "createdAt"',
+        'users.updated_at as "updatedAt"',
       ])
-      .orderBy('"users"."name"', 'ASC')
-      .execute();
+      .orderBy('users.name', 'ASC')
+      .getRawMany();
   }
 
 
@@ -75,8 +75,8 @@ export class UsersService {
         'users.name as name',
         'users.email as email',
         'user_role.name as role',
-        'users.created_at as created_at',
-        'users.updated_at as updated_at',
+        'users.created_at as "createdAt"',
+        'users.updated_at as "updatedAt"',
       ])
       .where('user_role.name = :role', { role: identifier})
       .orderBy('"users"."name"', 'ASC')
@@ -119,7 +119,7 @@ export class UsersService {
   async setCurrentRefreshToken(userName: string, token: string) {
     try {
       const user = await this.findOne(userName, 'username');
-      await this.userRepository.update(user.id, {refresh_token: token});
+      await this.userRepository.update(user.id, { refreshToken: token});
     } catch (err) {
       throw err;
     }

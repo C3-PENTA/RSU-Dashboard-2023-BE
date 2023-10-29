@@ -1,14 +1,14 @@
-import { SummaryItem } from 'src/modules/events/interface';
+import { SummaryItemInf } from '@interface/event.interface';
 
 export const mergeResults = (
-  availabilityNormalEvents: SummaryItem[],
-  availabilityErrorEvents: SummaryItem[],
-  communicationNormalEvents: SummaryItem[],
-  communicationErrorEvents: SummaryItem[],
-): SummaryItem[] => {
-  const mergedResults: Record<string, SummaryItem> = {}; // Updated type to SummaryItemRes
+  availabilityNormalEvents: SummaryItemInf[],
+  availabilityErrorEvents: SummaryItemInf[],
+  communicationNormalEvents: SummaryItemInf[],
+  communicationErrorEvents: SummaryItemInf[],
+): SummaryItemInf[] => {
+  const mergedResults: Record<string, SummaryItemInf> = {}; // Updated type to SummaryItemRes
 
-  const mergeEvent = (item: SummaryItem, eventType: string) => {
+  const mergeEvent = (item: SummaryItemInf, eventType: string) => {
     const { nodeId } = item;
     if (!mergedResults[nodeId]) {
       mergedResults[nodeId] = { nodeId: nodeId }; // Updated property name

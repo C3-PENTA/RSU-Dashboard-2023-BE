@@ -1,50 +1,26 @@
-/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
-import { AvailabilityEvents } from 'src/modules/events/entity/availability-events.entity';
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-  OneToMany
-} from 'typeorm';
+import { AbstractEntity } from 'src/common/abstract.entity';
+import { Column, Entity } from 'typeorm';
+
 @Entity()
-export class Nodes {
+export class Nodes extends AbstractEntity {
   @ApiProperty()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column({ name: 'rsu_id', type: 'varchar' })
+  rsuID: string;
 
   @ApiProperty()
-  @Column()
-  custom_id: string;
+  @Column({ name: 'name', type: 'varchar', nullable: true })
+  name: string;
 
   @ApiProperty()
-  @Column()
+  @Column({ name: 'status', type: 'boolean', nullable: true })
   status: boolean;
 
   @ApiProperty()
-  @Column()
-  dns: string;
-
-  @ApiProperty()
-  @Column()
+  @Column({ name: 'latitude', type: 'double precision', nullable: true })
   latitude: number;
 
   @ApiProperty()
-  @Column()
+  @Column({ name: 'longitude', type: 'double precision', nullable: true })
   longitude: number;
-  
-  @CreateDateColumn({
-    type: 'timestamptz',
-    default: () => 'now()',
-  })
-  public created_at: Date;
-
-  @UpdateDateColumn({
-    type: 'timestamptz',
-    default: () => 'now()',
-    onUpdate: 'now()',
-  })
-  public updated_at: Date;
 }

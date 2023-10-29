@@ -11,6 +11,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Users } from '../users/entity/users.entity';
 import { RoleService } from '../role/service/role.service';
 import { UserRoles } from '../role/entity/role.entity';
+import { ApiKeyStrategy } from './strategy/api-key.strategy';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UserRoles } from '../role/entity/role.entity';
     LocalStrategy,
     JwtAccessStrategy,
     JwtRefreshTokenStrategy,
+    ApiKeyStrategy,
     RoleService,
   ],
   controllers: [AuthController],

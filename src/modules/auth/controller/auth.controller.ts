@@ -22,7 +22,7 @@ import {
 import { JwtRefreshTokenGuard } from '../guard/jwt-refresh-token.guard';
 import { JwtAccessTokenGuard } from '../guard/jwt-access-token.guard';
 
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 

@@ -4,10 +4,10 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 @Entity()
 export class PolicyManager {
   @ApiProperty()
-  @PrimaryColumn('uuid')
-  node_id: string;
+  @PrimaryColumn('uuid', { name: 'node_id' })
+  nodeID: string;
 
   @ApiProperty()
-  @Column()
-  policy_id: string;
+  @Column({ name: 'policy_id', type: 'uuid', nullable: true })
+  policyID: string;
 }

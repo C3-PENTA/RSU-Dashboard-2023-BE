@@ -30,7 +30,7 @@ import { IgnoreEventsService } from '../service/ignore-events.service';
 @ApiTags('Users')
 @Roles(USER_ROLE.OPERATOR, USER_ROLE.MANAGER)
 @UseGuards(JwtAccessTokenGuard, RolesGuard)
-@Controller('api/users')
+@Controller('users')
 export class UsersController {
   private saltOrRounds = 10;
   constructor(private usersService: UsersService, private authService: AuthService, private ignoreEventsService: IgnoreEventsService) {}

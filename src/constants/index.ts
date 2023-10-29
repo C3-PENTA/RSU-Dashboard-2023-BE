@@ -29,7 +29,9 @@ export const Event_Key = {
   DETAIL: '오류 상세',
   SRC_NODE: '송신 노드',
   DEST_NODE: '수신 노드',
-  DRIVING_NEGOTIATION_CLASS: '주행협상 클래스',
+  COOPERATION_CLASS: 'Cooperation Class',
+  SESSION_ID: 'Session ID',
+  COMMUNICATION_CLASS: 'Communication Class',
   MESSAGE_TYPE: '메시지 종류',
   METHOD: '통신 방법'
 };
@@ -41,7 +43,13 @@ export enum EventStatus {
 
 export enum NetworkStatus {
   "연결됨" = 1,
-  "연결 안 됨" = 2,
+  "연결이 끊김" = 2,
+}
+
+export enum EdgeSystemConnection {
+  Connected = "연결됨",
+  Disconnected = "연결이 끊김",
+  Unknown = "Unknown"
 }
 
 export enum DrivingNegotiationsClass {

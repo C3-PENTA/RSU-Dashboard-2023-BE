@@ -18,7 +18,9 @@ export const isValidHeader = (record: Record<string, any>) => {
     Event_Key.NODE_ID,
     Event_Key.SRC_NODE,
     Event_Key.DEST_NODE,
-    Event_Key.DRIVING_NEGOTIATION_CLASS,
+    Event_Key.COMMUNICATION_CLASS,
+    Event_Key.SESSION_ID,
+    Event_Key.COOPERATION_CLASS,
     Event_Key.METHOD,
     Event_Key.MESSAGE_TYPE
   ]);

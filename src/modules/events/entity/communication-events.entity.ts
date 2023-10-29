@@ -1,54 +1,46 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { AbstractEntity } from 'src/common/abstract.entity';
+import { Column, Entity } from 'typeorm';
 
 @Entity()
-export class CommunicationEvents {
+export class CommunicationEvents extends AbstractEntity{
   @ApiProperty()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty()
-  @Column('uuid')
-  node_id: string;
+  @Column({ name: 'node_id', type: 'uuid' })
+  nodeId: string;
 
   @ApiProperty()
-  @Column()
-  driving_negotiations_class: number;
+  @Column({ name: 'cooperation_class', type: 'varchar', nullable: true })
+  cooperationClass: string;
 
   @ApiProperty()
-  @Column()
-  method: number;
+  @Column({ name: 'method', type: 'varchar', nullable: true })
+  method: string;
 
   @ApiProperty()
-  @Column('uuid')
-  src_node?: string;
+  @Column({ name: 'communication_class', type: 'varchar', nullable: true })
+  communicationClass: string;
 
   @ApiProperty()
-  @Column('uuid')
-  dest_node?: string;
+  @Column({ name: 'src_node', type: 'uuid', nullable: true })
+  srcNode?: string;
 
   @ApiProperty()
-  @Column()
-  message_type: number;
-
-
-  @CreateDateColumn({
-    type: 'timestamptz',
-    default: () => 'now()',
-  })
-  public created_at: Date;
+  @Column({ name: 'dest_node', type: 'uuid', nullable: true })
+  destNode?: string;
 
   @ApiProperty()
-  @Column()
+  @Column({ name: 'session_id', type: 'varchar', nullable: true })
+  sessionId?: string;
+
+  @ApiProperty()
+  @Column({ name: 'message_type', type: 'varchar', nullable: true })
+  messageType: string;
+
+  @ApiProperty()
+  @Column({ name: 'status', type: 'integer' })
   status: number;
 
   @ApiProperty()
-  @Column()
+  @Column({ name: 'detail', type: 'varchar', nullable: true })
   detail: string;
 }
