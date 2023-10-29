@@ -1,29 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { AbstractEntity } from 'src/common/abstract.entity';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
-export class Policies {
+export class Policies extends AbstractEntity {
   @ApiProperty()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty()
-  @Column()
+  @Column({ name: 'name', type: 'varchar' })
   name: string;
 
   @ApiProperty()
-  @Column()
-  cpu_limit: number;
+  @Column({ name: 'cpu_limit', type: 'integer'})
+  cpuLimit!: number;
 
   @ApiProperty()
-  @Column()
-  cpu_thresh: number;
+  @Column({ name: 'cpu_thresh', type: 'integer' })
+  cpuThresh!: number;
 
   @ApiProperty()
-  @Column()
-  num_edges: number;
+  @Column({ name: 'num_edges', type: 'integer'})
+  numEdges: number;
 
   @ApiProperty()
-  @Column()
-  is_activated: boolean;
+  @Column({ name: 'is_activated', type: 'boolean'})
+  isActivated: boolean;
 }

@@ -6,7 +6,7 @@ import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.gua
 
 @ApiTags('RSU Server API')
 @UseGuards(JwtAccessTokenGuard)
-@Controller('api/rsu')
+@Controller('rsu')
 export class NodeController {
   constructor(private nodeService: NodeService) {}
 

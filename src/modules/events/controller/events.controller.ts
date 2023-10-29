@@ -24,7 +24,6 @@ import { EventsService } from '../service/events.service';
 import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.guard';
 import { ExportDataDto } from '../dto/exportData.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { convertToUTC } from 'src/util/convertTimeZone';
 import { exportDataToCSV } from 'src/util/exportData';
 import * as fs from 'fs-extra';
 import * as admZip from 'adm-zip';
@@ -32,7 +31,7 @@ import * as path from 'path';
 
 @ApiTags('Event Management')
 @UseGuards(JwtAccessTokenGuard)
-@Controller('api/event-management')
+@Controller('event-management')
 export class EventsController {
   constructor(private eventsService: EventsService) {}
 
@@ -173,6 +172,7 @@ export class EventsController {
     @Res() res: Response,
   ) {
     try {
+      console.log(requestBody);
       const data = await this.eventsService.exportLogData(
         requestBody.type,
         requestBody.eventIds,
@@ -308,36 +308,10 @@ export class EventsController {
     return this.eventsService.deleteEvent(type, eventList, isDeletedAll);
   }
 
-  @Get('generator/status')
-  async getStatusGenerator() {
-    const status = this.eventsService.isCronJobEnabled ? 'ON' : 'OFF';
-    return { status: status };
-  }
-
-  @Post('generator/toggle')
-  async toggleGenerator() {
-    this.eventsService.isCronJobEnabled = !this.eventsService.isCronJobEnabled;
-    const status = this.eventsService.isCronJobEnabled ? 'ON' : 'OFF';
-    return { status: status };
-  }
-
-  @Post('generator/generate-data')
-  @ApiQuery({ name: 'type-event', required: true, enum: [1, 2] })
-  @ApiQuery({ name: 'start', required: true })
-  @ApiQuery({ name: 'end', required: true })
-  async generateData(
-    @Query('type-event') typeEvent: number,
-    @Query('start') start: string,
-    @Query('end') end: string,
-    @Res() res: Response
-  ) {
-    return this.eventsService.generateData(res, typeEvent, start, end);
-  }
-
   @Get('notifications')
   @ApiQuery({ name: 'username', required: true })
   @ApiOperation({
-    description: 'get notfications',
+    description: 'get notifications',
   })
   @ApiOkResponse({
     status: 200,

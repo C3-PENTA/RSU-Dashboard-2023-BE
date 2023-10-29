@@ -6,7 +6,6 @@ import { AvailabilityEvents } from '../entity/availability-events.entity';
 import { Nodes } from 'src/modules/nodes/entity/nodes.entity';
 import {
   CommunicationMethod,
-  DrivingNegotiationsClass,
   MessageType,
   NetworkStatus,
   NodeType,
@@ -16,27 +15,34 @@ import { mergeResults } from 'src/util/mergeResultsEventSummary';
 import { Cron } from '@nestjs/schedule';
 import { NodeService } from 'src/modules/nodes/service/nodes.service';
 import { isValidHeader } from 'src/util/isValidFileImport';
-import { convertTimeZone, convertToUTC } from 'src/util/convertTimeZone';
 import { getEnumValue } from 'src/util/handleEnumValue';
 import * as moment from 'moment-timezone';
-import { Response } from 'express';
-import { randomChoice, randomNumber } from 'src/util/randomNumber';
+import e, { Response } from 'express';
 import * as fs from 'fs-extra';
 import * as fastcsv from 'fast-csv';
 import { exportDataToZip } from 'src/util/exportData';
 import { IgnoreEventsService } from 'src/modules/users/service/ignore-events.service';
+import { HttpHelper } from '@util/http';
+import {
+  convertUnixToFormat,
+  convertTimeZone,
+  convertToUTC,
+  randomChoice,
+  randomNumber,
+} from '@util/function';
 
 @Injectable()
 export class EventsService {
-  public isCronJobEnabled = process.env.APP_ENV == 'PROD' ? true : false;
   constructor(
     @InjectRepository(CommunicationEvents)
     private communicationEventsRepository: Repository<CommunicationEvents>,
     @InjectRepository(AvailabilityEvents)
     private availabilityEventsRepository: Repository<AvailabilityEvents>,
+    @InjectRepository(Nodes)
+    private NodesRepo: Repository<Nodes>,
     private nodeService: NodeService,
-    private ignoreEventsService: IgnoreEventsService
-  ) { }
+    private ignoreEventsService: IgnoreEventsService,
+  ) {}
 
   async saveEvent(type: number, events: any) {
     try {
@@ -81,13 +87,13 @@ export class EventsService {
   async checkDuplicateRow(event: CommunicationEvents) {
     const duplicateEvent = await this.communicationEventsRepository.findOne({
       where: {
-        node_id: event.node_id,
-        driving_negotiations_class: event.driving_negotiations_class,
+        node_id: event.nodeId,
+        cooperationClass: event.cooperationClass,
         method: event.method,
-        src_node: event.src_node,
-        dest_node: event.dest_node,
-        message_type: event.message_type,
-        created_at: event.created_at,
+        src_node: event.srcNode,
+        dest_node: event.destNode,
+        message_type: event.messageType,
+        created_at: event.createdAt,
       },
     });
     if (duplicateEvent) return true;
@@ -114,8 +120,8 @@ export class EventsService {
         .createQueryBuilder('events')
         .select([
           'events.id as id',
-          'nodes.custom_id as "nodeId"',
-          'nodes.type as "nodeType"',
+          'nodes.rsu_id as "nodeId"',
+          'nodes.name as "nodeType"',
           'events.cpu_usage as "cpuUsage"',
           'events.cpu_temp as "cpuTemp"',
           'events.ram_usage as "ramUsage"',
@@ -131,11 +137,13 @@ export class EventsService {
         .createQueryBuilder('events')
         .select([
           'events.id as id',
-          'nodes.custom_id as "nodeId"',
-          'nodes.type as "nodeType"',
-          'src_node.custom_id as "srcNode"',
-          'dest_node.custom_id as "destNode"',
-          'events.driving_negotiations_class as "drivingNegotiationsClass"',
+          'nodes.rsu_id as "nodeId"',
+          'nodes.name as "nodeType"',
+          'src_node.rsu_id as "srcNode"',
+          'dest_node.rsu_id as "destNode"',
+          'events.cooperation_class as "drivingNegotiationsClass"',
+          'events.communication_class as "communicationClass"',
+          'events.session_id as "sessionID"',
           'events.method as method',
           'events.message_type as "messageType"',
           'events.created_at as "createdAt"',
@@ -147,7 +155,7 @@ export class EventsService {
       queryBuilder = queryBuilder
         .andWhere(
           drivingNegotiationClass && drivingNegotiationClass.length
-            ? 'events.driving_negotiations_class IN (:...drivingNegotiationClass)'
+            ? 'events.cooperation_class IN (:...drivingNegotiationClass)'
             : '1=1',
           { drivingNegotiationClass },
         )
@@ -201,7 +209,7 @@ export class EventsService {
         return {
           id: event.id,
           nodeId: event.nodeId,
-          nodeType: NodeType[event.nodeType],
+          nodeType: event.nodeType,
           detail: event.detail,
           status: event.status,
           createdAt: event.createdAt,
@@ -219,13 +227,14 @@ export class EventsService {
         return {
           id: event.id,
           nodeId: event.nodeId,
-          nodeType: NodeType[event.nodeType],
+          nodeType: event.nodeType,
           srcNode: event.srcNode ? event.srcNode : 'B',
           destNode: event.destNode ? event.destNode : 'B',
-          drivingNegotiationsClass:
-            DrivingNegotiationsClass[event.drivingNegotiationsClass],
-          method: CommunicationMethod[event.method],
-          messageType: MessageType[event.messageType],
+          cooperationClass: event.drivingNegotiationsClass,
+          communicationClass: event.communicationClass,
+          sessionID: event.sessionID,
+          method: event.method,
+          messageType: event.messageType,
           detail: event.detail,
           status: event.status,
           createdAt: event.createdAt,
@@ -248,51 +257,50 @@ export class EventsService {
     };
   }
 
-
   async getEventsSummary(time_range: string) {
     const availabilityNormal = this.availabilityEventsRepository
       .createQueryBuilder('avai_events')
       .select([
         'node_id as "nodeId"',
-        'nodes.custom_id as "customId"',
+        'nodes.rsu_id as "customId"',
         'COUNT(node_id) as "totalAvailabilityNormal"',
       ])
       .innerJoin(Nodes, 'nodes', 'avai_events.node_id = nodes.id')
       .where('avai_events.status = 1')
-      .groupBy('avai_events.node_id, nodes.custom_id');
+      .groupBy('avai_events.node_id, nodes.rsu_id');
 
     const communicationNormal = this.communicationEventsRepository
       .createQueryBuilder('comm_events')
       .select([
         'node_id as "nodeId"',
-        'nodes.custom_id as "customId"',
+        'nodes.rsu_id as "customId"',
         'COUNT(node_id) as "totalCommunicationNormal"',
       ])
       .innerJoin(Nodes, 'nodes', 'comm_events.node_id = nodes.id')
       .where('comm_events.status = 1')
-      .groupBy('comm_events.node_id, nodes.custom_id');
+      .groupBy('comm_events.node_id, nodes.rsu_id');
 
     const availabilityError = this.availabilityEventsRepository
       .createQueryBuilder('avai_events')
       .select([
         'node_id as "nodeId"',
-        'nodes.custom_id as "customId"',
+        'nodes.rsu_id as "customId"',
         'COUNT(node_id) as "totalAvailabilityError"',
       ])
       .innerJoin(Nodes, 'nodes', 'avai_events.node_id = nodes.id')
       .where('avai_events.status = 2')
-      .groupBy('avai_events.node_id, nodes.custom_id');
+      .groupBy('avai_events.node_id, nodes.rsu_id');
 
     const communicationError = this.communicationEventsRepository
       .createQueryBuilder('comm_events')
       .select([
         'node_id as "nodeId"',
-        'nodes.custom_id as "customId"',
+        'nodes.rsu_id as "customId"',
         'COUNT(node_id) as "totalCommunicationError"',
       ])
       .innerJoin(Nodes, 'nodes', 'comm_events.node_id = nodes.id')
       .where('comm_events.status = 2')
-      .groupBy('comm_events.node_id, nodes.custom_id');
+      .groupBy('comm_events.node_id, nodes.rsu_id');
 
     const hourAgo = new Date(new Date().getTime() - 60 * 60 * 1000);
 
@@ -326,16 +334,24 @@ export class EventsService {
         communicationErrorEvents,
       ] = await Promise.all([
         availabilityNormal
-          .andWhere('avai_events.created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('avai_events.created_at > :timestamp', {
+            timestamp: hourAgo,
+          })
           .getRawMany(),
         availabilityError
-          .andWhere('avai_events.created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('avai_events.created_at > :timestamp', {
+            timestamp: hourAgo,
+          })
           .getRawMany(),
         communicationNormal
-          .andWhere('comm_events.created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('comm_events.created_at > :timestamp', {
+            timestamp: hourAgo,
+          })
           .getRawMany(),
         communicationError
-          .andWhere('comm_events.created_at > :timestamp', { timestamp: hourAgo })
+          .andWhere('comm_events.created_at > :timestamp', {
+            timestamp: hourAgo,
+          })
           .getRawMany(),
       ]);
 
@@ -367,8 +383,8 @@ export class EventsService {
       
       SELECT
         le.id,
-        nodes.custom_id,
-        nodes.type,
+        nodes.rsu_id,
+        nodes.name,
         e.cpu_usage,
         e.cpu_temp,
         e.ram_usage,
@@ -382,7 +398,7 @@ export class EventsService {
       JOIN public.availability_events AS e ON le.id = e.id
       JOIN public.nodes as nodes ON e.node_id = nodes.id
       WHERE le.row_number = 1
-      ORDER BY nodes.custom_id
+      ORDER BY nodes.rsu_id
     `;
 
     const result = await this.availabilityEventsRepository.query(query);
@@ -395,8 +411,8 @@ export class EventsService {
 
       return {
         eventId: ele.id,
-        nodeId: ele.custom_id,
-        nodeType: NodeType[ele.type],
+        nodeId: ele.rsuID,
+        nodeType: ele.type,
         cpuUsage: ele.cpu_usage,
         cpuTemp: ele.cpu_temp,
         ramUsage: ele.ram_usage,
@@ -419,7 +435,7 @@ export class EventsService {
       .createQueryBuilder('events')
       .select([
         'events.id as id',
-        'nodes.custom_id as "nodeId"',
+        'nodes.rsu_id as "nodeId"',
         'events.detail as detail',
       ])
       .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
@@ -434,7 +450,7 @@ export class EventsService {
       .createQueryBuilder('events')
       .select([
         'events.id as id',
-        'nodes.custom_id as "nodeId"',
+        'nodes.rsu_id as "nodeId"',
         'events.detail as detail',
       ])
       .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
@@ -457,15 +473,14 @@ export class EventsService {
     });
   }
 
-
   async exportLogData(type: number, eventIds: string[], log: boolean) {
     try {
       if (type == 1) {
         const result = await this.availabilityEventsRepository
           .createQueryBuilder('events')
           .select([
-            'nodes.custom_id as "nodeId"',
-            'nodes.type as "nodeType"',
+            'nodes.rsu_id as "nodeId"',
+            'nodes.name as "nodeType"',
             'events.cpu_usage as "cpuUsage"',
             'events.cpu_temp as "cpuTemp"',
             'events.ram_usage as "ramUsage"',
@@ -480,45 +495,57 @@ export class EventsService {
           .where({ id: In(eventIds) })
           .getRawMany();
 
-        return log ? result.map((event) => {
-          return {
-            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
-            [Event_Key.NODE_ID]: event.nodeId,
-            [Event_Key.NODE_TYPE]: NodeType[event.nodeType],
-            [Event_Key.CPU_USAGE]: event.cpuUsage,
-            [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
-            [Event_Key.RAM_USAGE]: event.ramUsage,
-            [Event_Key.DISK_USAGE]: event.diskUsage,
-            [Event_Key.NETWORK_SPEED]: event.networkSpeed ? event.networkSpeed + ' Mbps' : null,
-            [Event_Key.NETWORK_USAGE]: event.networkUsage ? event.networkUsage + ' Byte' : null,
-            [Event_Key.NETWORK_CONNECTION_STATUS]:
-              NetworkStatus[event.networkStatus],
-            [Event_Key.DETAIL]: event.detail,
-          };
-        }) : result.map((event) => {
-          return {
-            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
-            [Event_Key.NODE_ID]: event.nodeId,
-            [Event_Key.CPU_USAGE]: event.cpuUsage,
-            [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
-            [Event_Key.RAM_USAGE]: event.ramUsage,
-            [Event_Key.DISK_USAGE]: event.diskUsage,
-            [Event_Key.NETWORK_SPEED]: event.networkSpeed ? event.networkSpeed + ' Mbps' : null,
-            [Event_Key.NETWORK_USAGE]: event.networkUsage ? event.networkUsage + ' Byte' : null,
-            [Event_Key.NETWORK_CONNECTION_STATUS]:
-              NetworkStatus[event.networkStatus],
-          };
-        });
+        return log
+          ? result.map((event) => {
+              return {
+                [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+                [Event_Key.NODE_ID]: event.nodeId,
+                [Event_Key.NODE_TYPE]: event.nodeType,
+                [Event_Key.CPU_USAGE]: event.cpuUsage,
+                [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
+                [Event_Key.RAM_USAGE]: event.ramUsage,
+                [Event_Key.DISK_USAGE]: event.diskUsage,
+                [Event_Key.NETWORK_SPEED]: event.networkSpeed
+                  ? event.networkSpeed + ' Mbps'
+                  : null,
+                [Event_Key.NETWORK_USAGE]: event.networkUsage
+                  ? event.networkUsage + ' Byte'
+                  : null,
+                [Event_Key.NETWORK_CONNECTION_STATUS]:
+                  NetworkStatus[event.networkStatus],
+                [Event_Key.DETAIL]: event.detail,
+              };
+            })
+          : result.map((event) => {
+              return {
+                [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+                [Event_Key.NODE_ID]: event.nodeId,
+                [Event_Key.CPU_USAGE]: event.cpuUsage,
+                [Event_Key.CPU_TEMPERATURE]: event.cpuTemp,
+                [Event_Key.RAM_USAGE]: event.ramUsage,
+                [Event_Key.DISK_USAGE]: event.diskUsage,
+                [Event_Key.NETWORK_SPEED]: event.networkSpeed
+                  ? event.networkSpeed + ' Mbps'
+                  : null,
+                [Event_Key.NETWORK_USAGE]: event.networkUsage
+                  ? event.networkUsage + ' Byte'
+                  : null,
+                [Event_Key.NETWORK_CONNECTION_STATUS]:
+                  NetworkStatus[event.networkStatus],
+              };
+            });
       } else if (type == 2) {
         const result = await this.communicationEventsRepository
           .createQueryBuilder('events')
           .select([
             'events.id as id',
-            'nodes.custom_id as "nodeId"',
-            'nodes.type as "nodeType"',
-            'src_node.custom_id as "srcNode"',
-            'dest_node.custom_id as "destNode"',
-            'events.driving_negotiations_class as "drivingNegotiationsClass"',
+            'nodes.rsu_id as "nodeId"',
+            'nodes.name as "nodeType"',
+            'src_node.rsu_id as "srcNode"',
+            'dest_node.rsu_id as "destNode"',
+            'events.cooperation_class as "cooperationClass"',
+            'events.session_id as "sessionID"',
+            'events.communication_class as "communicationClass"',
             'events.method as method',
             'events.message_type as "messageType"',
             'events.status as status',
@@ -526,36 +553,40 @@ export class EventsService {
             'events.detail as detail',
           ])
           .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
-          .innerJoin(Nodes, 'src_node', 'events.src_node = src_node.id')
-          .innerJoin(Nodes, 'dest_node', 'events.dest_node = dest_node.id')
+          .leftJoin(Nodes, 'src_node', 'events.src_node = src_node.id')
+          .leftJoin(Nodes, 'dest_node', 'events.dest_node = dest_node.id')
           .where({ id: In(eventIds) })
           .getRawMany();
 
-        return log ? result.map((event) => {
-          return {
-            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
-            [Event_Key.NODE_ID]: event.nodeId,
-            [Event_Key.NODE_TYPE]: NodeType[event.nodeType],
-            [Event_Key.SRC_NODE]: event.srcNode,
-            [Event_Key.DEST_NODE]: event.destNode,
-            [Event_Key.DRIVING_NEGOTIATION_CLASS]:
-              DrivingNegotiationsClass[event.drivingNegotiationsClass],
-            [Event_Key.METHOD]: CommunicationMethod[event.method],
-            [Event_Key.MESSAGE_TYPE]: MessageType[event.messageType],
-            [Event_Key.DETAIL]: event.detail,
-          };
-        }) : result.map((event) => {
-          return {
-            [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
-            [Event_Key.NODE_ID]: event.nodeId,
-            [Event_Key.SRC_NODE]: event.srcNode,
-            [Event_Key.DEST_NODE]: event.destNode,
-            [Event_Key.DRIVING_NEGOTIATION_CLASS]:
-              DrivingNegotiationsClass[event.drivingNegotiationsClass],
-            [Event_Key.METHOD]: CommunicationMethod[event.method],
-            [Event_Key.MESSAGE_TYPE]: MessageType[event.messageType],
-          };
-        });
+        return log
+          ? result.map((event) => {
+              return {
+                [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+                [Event_Key.NODE_ID]: event.nodeId,
+                [Event_Key.NODE_TYPE]: event.nodeType,
+                [Event_Key.SRC_NODE]: event.srcNode,
+                [Event_Key.DEST_NODE]: event.destNode ?? 'B',
+                [Event_Key.COOPERATION_CLASS]: event.cooperationClass,
+                [Event_Key.SESSION_ID]: event.sessionID,
+                [Event_Key.COMMUNICATION_CLASS]: event.communicationClass,
+                [Event_Key.METHOD]: event.method,
+                [Event_Key.MESSAGE_TYPE]: event.messageType,
+                [Event_Key.DETAIL]: event.detail,
+              };
+            })
+          : result.map((event) => {
+              return {
+                [Event_Key.OCCURRENCE_TIME]: convertTimeZone(event.createdAt),
+                [Event_Key.NODE_ID]: event.nodeId,
+                [Event_Key.SRC_NODE]: event.srcNode,
+                [Event_Key.DEST_NODE]: event.destNode ?? 'B',
+                [Event_Key.COOPERATION_CLASS]: event.cooperationClass,
+                [Event_Key.SESSION_ID]: event.sessionID,
+                [Event_Key.COMMUNICATION_CLASS]: event.communicationClass,
+                [Event_Key.METHOD]: event.method,
+                [Event_Key.MESSAGE_TYPE]: event.messageType,
+              };
+            });
       }
     } catch (error) {
       console.error('Error exporting data:', error);
@@ -563,7 +594,6 @@ export class EventsService {
     }
   }
 
-  
   async saveBatch(
     records: any,
     typeEvent: number,
@@ -632,193 +662,6 @@ export class EventsService {
       }
     }
     return detailMessage;
-  }
-
-  async generateData(
-    @Res() res: Response,
-    typeEvent: number,
-    start: string,
-    end: string,
-  ) {
-    const dateFormat = 'YYYY-MM-DD HH:mm:ssZ';
-
-    const startDate = moment.tz(start, dateFormat).toDate();
-    const endDate = moment.tz(end, dateFormat).toDate();
-
-    // Create a Map to index the nodes by custom_id
-    const nodeList = await this.nodeService.findAll();
-    const nodeMap = new Map();
-    for (const node of nodeList.nodes) {
-      nodeMap.set(node.id, node);
-    }
-
-    try {
-      let current = new Date(startDate); // Start from startDate
-      const totalEvents = [];
-
-      while (current <= endDate) {
-        if (typeEvent == 1) {
-          const events = await this.genAvailEvents(current);
-          totalEvents.push(...events);
-        } else if (typeEvent == 2) {
-          const events = await this.genCommEvents(current);
-          totalEvents.push(...events);
-        }
-        // Move to the next minute
-        current = new Date(current.getTime() + 60 * 1000); // Add 1 minute
-      }
-
-      let mappedArray;
-      if (typeEvent == 1) {
-        mappedArray = totalEvents.map((event) => ({
-          '발생 시간': convertTimeZone(event.created_at),
-          '노드 ID': nodeMap.get(event.node_id).custom_id,
-          'CPU 사용량': event.cpu_usage,
-          'CPU 온도': event.cpu_temp,
-          'RAM 사용량': event.ram_usage,
-          'DISK 사용량': event.disk_usage,
-          '네트워크 속도': event.network_speed,
-          '네트워크 사용량': event.network_usage,
-          '네트워크 연결 상태': NetworkStatus[event.network_status],
-        }));
-      } else {
-        mappedArray = totalEvents.map((event) => ({
-          '발생 시간': convertTimeZone(event.created_at),
-          '노드 ID': nodeMap.get(event.node_id).custom_id,
-          '송신 노드': event.src_node
-            ? nodeMap.get(event.src_node).custom_id
-            : 'B',
-          '수신 노드': event.dest_node
-            ? nodeMap.get(event.dest_node).custom_id
-            : 'B',
-          '주행협상 클래스':
-            DrivingNegotiationsClass[event.driving_negotiations_class],
-          '통신 방법': CommunicationMethod[event.method],
-          '메시지 종류': MessageType[event.message_type],
-        }));
-      }
-
-      return exportDataToZip(res, mappedArray);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async genCommEvents(timestamp: Date = new Date()) {
-    const idList = [...(await this.nodeService.getMapNodeList()).idMap.keys()];
-    idList.push('');
-
-    // variable to double result
-    const isSame = randomChoice([0, 1]);
-
-    const eventA = new CommunicationEvents();
-    eventA.node_id = randomChoice(idList.filter((item) => item !== ''));
-    eventA.driving_negotiations_class = randomChoice([3, 4]);
-    eventA.created_at = timestamp;
-
-    const temp_node = randomChoice([
-      ...idList.filter((item) => item !== eventA.node_id),
-    ]);
-
-    if (temp_node == '') {
-      eventA.method = 0;
-      const randomVal = randomChoice([0, 1]);
-      if (randomVal == 0) {
-        eventA.dest_node = eventA.node_id;
-        eventA.message_type = 1;
-      } else {
-        eventA.src_node = eventA.node_id;
-        eventA.message_type = 0;
-      }
-      const result = [eventA];
-      if (isSame == 1) {
-        const dupResult = JSON.parse(JSON.stringify(result));
-        dupResult.forEach((event) => {
-          event.status = 2;
-          event.detail = '중복 메시지 수신';
-        });
-
-        result.forEach((event) => {
-          event.status = 1;
-        });
-        return [...result, ...dupResult];
-      } else {
-        result.forEach((event) => {
-          event.status = 1;
-        });
-        return result;
-      }
-    } else {
-      eventA.dest_node = temp_node;
-      eventA.src_node = eventA.node_id;
-      eventA.message_type = 0;
-      eventA.method = 1;
-
-      const eventB = {
-        ...eventA,
-        node_id: eventA.dest_node,
-      };
-
-      const result = [eventA, eventB];
-      if (isSame == 1) {
-        const dupResult = JSON.parse(JSON.stringify(result));
-        dupResult.forEach((event) => {
-          event.status = 2;
-          event.detail = '중복 메시지 수신';
-        });
-        result.forEach((event) => {
-          event.status = 1;
-        });
-        return [...result, ...dupResult];
-      } else {
-        result.forEach((event) => {
-          event.status = 1;
-        });
-        return result;
-      }
-    }
-  }
-
-  async genAvailEvents(timestamp: Date = new Date()) {
-    const idList = [...(await this.nodeService.getMapNodeList()).idMap.keys()];
-    const events = [];
-
-    for (const nodeId of idList) {
-      let event = new AvailabilityEvents();
-      event.node_id = nodeId;
-      event.created_at = timestamp;
-      event.cpu_usage = randomNumber(0, 100);
-      event.cpu_temp = randomNumber(0, 100);
-      event.ram_usage = randomNumber(0, 100);
-      event.disk_usage = randomNumber(0, 100);
-      event.network_status = randomChoice([1, 2]);
-      if (event.network_status == 1) {
-        event.network_speed = randomNumber(0, 100);
-        event.network_usage = randomNumber(0, 100);
-      }
-      event.detail = await this.defineErrorMessage(1, event);
-      event.status = event.detail.length > 0 ? 2 : 1;
-      events.push(event);
-    }
-    return events;
-  }
-
-  @Cron('0 */1 * * * *')
-  async genAvailabilityEventsCron() {
-    if (!this.isCronJobEnabled) {
-      return; // If the cron job is disabled, exit the function immediately
-    }
-    const events = await this.genAvailEvents();
-    return this.availabilityEventsRepository.save(events);
-  }
-
-  @Cron('0 */1 * * * *')
-  async genCommunicationEvents() {
-    if (!this.isCronJobEnabled) {
-      return; // If the cron job is disabled, exit the function immediately
-    }
-    const events = await this.genCommEvents();
-    return this.communicationEventsRepository.save(events);
   }
 
   async parseCsvAndSaveToDatabase(filePath: string) {
@@ -901,7 +744,6 @@ export class EventsService {
     additionalInfo: any,
   ) {
     try {
-      let event;
       if (typeEvent == 1) {
         const node = additionalInfo.nodeInfo.get(record[Event_Key.NODE_ID]);
         let cpuUsage = parseFloat(record[Event_Key.CPU_USAGE]);
@@ -926,8 +768,7 @@ export class EventsService {
           networkSpeed < 0 || networkSpeed > 100 ? null : networkSpeed;
 
         let networkUsage = parseFloat(record[Event_Key.NETWORK_USAGE]);
-        networkUsage =
-          networkUsage < 0 || networkUsage > 100 ? null : networkUsage;
+        networkUsage = networkUsage < 0 ? null : networkUsage;
 
         if (
           networkStatus == 2 &&
@@ -937,100 +778,117 @@ export class EventsService {
           throw new Error();
         }
 
-        event = new AvailabilityEvents();
-        event.node_id =
+        const event = new AvailabilityEvents();
+        event.nodeId =
           node ??
           (() => {
             throw new Error();
           })();
-        event.cpu_usage =
+        event.cpuUsage =
           cpuUsage ??
           (() => {
             throw new Error();
           })();
-        event.cpu_temp =
+        event.cpuTemp =
           cpuTemp ??
           (() => {
             throw new Error();
           })();
-        event.ram_usage =
+        event.ramUsage =
           ramUsage ??
           (() => {
             throw new Error();
           })();
-        event.disk_usage =
+        event.diskUsage =
           diskUsage ??
           (() => {
             throw new Error();
           })();
-        event.network_status =
+        event.networkStatus =
           networkStatus ??
           (() => {
             throw new Error();
           })();
-        event.network_speed =
+        event.networkSpeed =
           typeof networkSpeed !== 'undefined'
             ? Number.isNaN(networkSpeed)
               ? null
               : networkSpeed
             : (() => {
-              throw new Error();
-            })();
-        event.network_usage =
+                throw new Error();
+              })();
+        event.networkUsage =
           typeof networkUsage !== 'undefined'
             ? Number.isNaN(networkUsage)
               ? null
               : networkUsage
             : (() => {
-              throw new Error();
-            })();
-        event.created_at = convertToUTC(record[Event_Key.OCCURRENCE_TIME]);
+                throw new Error();
+              })();
+        event.createdAt = moment(
+          convertToUTC(record[Event_Key.OCCURRENCE_TIME]),
+        ).toDate();
         event.detail = await this.defineErrorMessage(1, event);
         event.status = event.detail != '' ? 2 : 1;
+
+        return {
+          status: 1,
+          event: event,
+        };
       } else if (typeEvent == 2) {
-        event = new CommunicationEvents();
-        event.node_id =
+        const event = new CommunicationEvents();
+
+        event.nodeId =
           record[Event_Key.NODE_ID] != 'B'
             ? additionalInfo.nodeInfo.get(record[Event_Key.NODE_ID])
             : null;
-        event.dest_node =
+        event.destNode =
           record[Event_Key.DEST_NODE] != 'B'
             ? additionalInfo.nodeInfo.get(record[Event_Key.DEST_NODE])
             : null;
-        event.src_node =
+        event.srcNode =
           record[Event_Key.SRC_NODE] != 'B'
             ? additionalInfo.nodeInfo.get(record[Event_Key.SRC_NODE])
             : null;
 
-        event.driving_negotiations_class =
-          getEnumValue(
-            DrivingNegotiationsClass,
-            record[Event_Key.DRIVING_NEGOTIATION_CLASS],
-          ) ??
+        event.cooperationClass =
+          record[Event_Key.COOPERATION_CLASS] ??
+          (() => {
+            throw new Error();
+          })();
+        event.sessionId =
+          record[Event_Key.SESSION_ID] ??
+          (() => {
+            throw new Error();
+          })();
+        event.communicationClass =
+          record[Event_Key.COMMUNICATION_CLASS] ??
           (() => {
             throw new Error();
           })();
         event.method =
-          getEnumValue(CommunicationMethod, record[Event_Key.METHOD]) ??
+          record[Event_Key.METHOD] ??
           (() => {
             throw new Error();
           })();
-        event.message_type =
-          getEnumValue(MessageType, record[Event_Key.MESSAGE_TYPE]) ??
+        event.messageType =
+          record[Event_Key.MESSAGE_TYPE] ??
           (() => {
             throw new Error();
           })();
-        event.created_at = convertToUTC(record[Event_Key.OCCURRENCE_TIME]);
-        event.detail = await this.defineErrorMessage(2, event);
+        event.createdAt = moment(
+          convertToUTC(record[Event_Key.OCCURRENCE_TIME]),
+        ).toDate();
+        event.detail = '';
         event.status = event.detail != '' ? 2 : 1;
+
+        return {
+          status: 1,
+          event: event,
+        };
       } else {
         throw new Error();
       }
-
-      return {
-        status: 1,
-        event: event,
-      };
     } catch (err) {
       return {
         status: 2,
@@ -1063,15 +921,16 @@ export class EventsService {
     const lastUpdated = new Date();
     const now = new Date();
     lastUpdated.setMinutes(lastUpdated.getMinutes() - 30);
-    const listIgnoreEvents = await this.ignoreEventsService.getIgnoreEventByUsername(username);
+    const listIgnoreEvents =
+      await this.ignoreEventsService.getIgnoreEventByUsername(username);
 
     let avaiEventsQuery = this.availabilityEventsRepository
       .createQueryBuilder('events')
       .select([
         'events.id as id',
-        'nodes.custom_id as "nodeId"',
+        'nodes.rsu_id as "nodeId"',
         'events.detail as detail',
-        'events.created_at as "createAt"'
+        'events.created_at as "createAt"',
       ])
       .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
       .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
@@ -1082,7 +941,10 @@ export class EventsService {
       .orderBy('events.created_at', 'DESC');
 
     if (listIgnoreEvents && listIgnoreEvents.length > 0) {
-      avaiEventsQuery = avaiEventsQuery.andWhere('events.id NOT IN (:...listIgnoreEvents)', { listIgnoreEvents });
+      avaiEventsQuery = avaiEventsQuery.andWhere(
+        'events.id NOT IN (:...listIgnoreEvents)',
+        { listIgnoreEvents },
+      );
     }
 
     const avaiEvents = await avaiEventsQuery.getRawMany();
@@ -1091,9 +953,9 @@ export class EventsService {
       .createQueryBuilder('events')
       .select([
         'events.id as id',
-        'nodes.custom_id as "nodeId"',
+        'nodes.rsu_id as "nodeId"',
         'events.detail as detail',
-        'events.created_at as "createAt"'
+        'events.created_at as "createAt"',
       ])
       .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
       .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
@@ -1104,7 +966,10 @@ export class EventsService {
       .orderBy('events.created_at', 'DESC');
 
     if (listIgnoreEvents && listIgnoreEvents.length > 0) {
-      commEventsQuery = commEventsQuery.andWhere('events.id NOT IN (:...listIgnoreEvents)', { listIgnoreEvents });
+      commEventsQuery = commEventsQuery.andWhere(
+        'events.id NOT IN (:...listIgnoreEvents)',
+        { listIgnoreEvents },
+      );
     }
 
     const commEvents = await commEventsQuery.getRawMany();
@@ -1124,10 +989,12 @@ export class EventsService {
 
   async getRSUUsage(type: string, period: string): Promise<any> {
     const listNodeLive = (await this.nodeService.findAll()).nodes;
-    
+
     let result = [];
     await Promise.all(
-      (await listNodeLive).map(async (rsu) => {
+      (
+        await listNodeLive
+      ).map(async (rsu) => {
         try {
           const fromDate = new Date();
           const now = new Date();
@@ -1137,49 +1004,241 @@ export class EventsService {
           // Last 30 days
           if (period === 'month') {
             fromDate.setDate(fromDate.getDate() - 30);
-  
-            rsuUsage = await this.availabilityEventsRepository
+
+            rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('event')
-              .select(`DATE(event.created_at) AS timestamp, AVG(event.${type}_usage) AS average`)
-              .where('event.node_id = :rsuId AND event.created_at >= :fromDate  AND event.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .select(
+                `DATE(event.created_at) AS timestamp, AVG(event.${type}_usage) AS average`,
+              )
+              .where(
+                'event.node_id = :rsuId AND event.created_at >= :fromDate  AND event.created_at <= :now',
+                { rsuId: rsu.id, fromDate, now },
+              )
               .groupBy('DATE(event.created_at)')
               .orderBy('timestamp')
-              .execute() as Promise<{ date: string, average: number }[]>;
+              .execute()) as Promise<{ date: string; average: number }[]>;
           }
           // Last 24 hours
           if (period === 'date') {
             fromDate.setHours(fromDate.getHours() - 24);
 
-            rsuUsage = await this.availabilityEventsRepository
+            rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('usage')
-              .select(`DATE_TRUNC('hour', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`)
-              .where('usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .select(
+                `DATE_TRUNC('hour', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`,
+              )
+              .where(
+                'usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now',
+                { rsuId: rsu.id, fromDate, now },
+              )
               .groupBy("DATE_TRUNC('hour', usage.created_at)")
               .orderBy('timestamp')
-              .execute() as Promise<{ hour: Date, average: number }[]>;
+              .execute()) as Promise<{ hour: Date; average: number }[]>;
           }
           // Last 60 minutes
           if (period === 'hour') {
             fromDate.setMinutes(fromDate.getMinutes() - 60);
 
-            rsuUsage = await this.availabilityEventsRepository
+            rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('usage')
-              .select(`DATE_TRUNC('minute', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`)
-              .where('usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now', { rsuId: rsu.id, fromDate, now })
+              .select(
+                `DATE_TRUNC('minute', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`,
+              )
+              .where(
+                'usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now',
+                { rsuId: rsu.id, fromDate, now },
+              )
               .groupBy("DATE_TRUNC('minute', usage.created_at)")
               .orderBy('timestamp')
-              .execute() as Promise<{ minute: string, average: number }[]>;
+              .execute()) as Promise<{ minute: string; average: number }[]>;
           }
-          rsuUsage !== undefined && rsuUsage.length !== 0 && result.push({
-            id: rsu.custom_id,
-            usage: rsuUsage,
-          });
-          
+          rsuUsage !== undefined &&
+            rsuUsage.length !== 0 &&
+            result.push({
+              id: rsu.rsuID,
+              usage: rsuUsage,
+            });
         } catch (error) {
           console.error(error);
-        } 
-      })
+        }
+      }),
     );
-    return result.sort((a, b) => a.id.localeCompare(b.id))
+    return result.sort((a, b) => a.id.localeCompare(b.id));
   }
+
+  async parseDataToAvaiEvent(message: any) {
+    let node = await this.nodeService.findOne({ rsuID: message.nodeID });
+
+    if (!node) {
+      node = new Nodes();
+      node.rsuID = message.nodeID;
+    }
+    node.name = message.rsuName ?? null;
+    node.latitude = message.latitude ?? null;
+    node.longitude = message.longitude ?? null;
+
+    const result = await this.NodesRepo.save(node);
+
+    let event = new AvailabilityEvents();
+    event.nodeId = result.id;
+    event.createdAt = convertUnixToFormat(message.timeStamp);
+    event.cpuUsage = message.cpuUsage;
+    event.cpuTemp = message.cpuTemperature;
+    event.ramUsage = message.ramUsage;
+    event.diskUsage = message.diskUsage;
+    event.networkStatus = message.rsuConnection == true ? 1 : 2;
+    event.networkSpeed = message.networkSpeed ? message.networkSpeed : null;
+    event.networkUsage = message.networkUsage ? message.networkUsage : null;
+    event.detail = await this.defineErrorMessage(1, event);
+    event.status = event.detail.length > 0 ? 2 : 1;
+    return event;
+  }
+
+  async parseDataToCommEvent(data: any) {
+    const messageList = data.messageList;
+
+    const nodeIDMap = (await this.nodeService.getMapNodeList()).customMap;
+
+    const eventList = [];
+
+    for (let message of messageList) {
+      let nodeID = nodeIDMap.get(message.nodeID);
+      if (!nodeID) {
+        nodeID = (
+          await this.nodeService.createNode({
+            rsuID: message.nodeID,
+            name: message.rsuName,
+          })
+        ).id;
+        nodeIDMap.set(message.nodeID, nodeID);
+      }
+
+      let srcNodeID = nodeIDMap.get(message.senderNodeID);
+      if (!srcNodeID) {
+        srcNodeID = (
+          await this.nodeService.createNode({ rsuID: message.senderNodeID })
+        ).id;
+        nodeIDMap.set(message.senderNodeID, srcNodeID);
+      }
+
+      let destNodeID = nodeIDMap.get(message.receiverNodeID);
+      if (!destNodeID && message.receiverNodeID !== 'B') {
+        destNodeID = (
+          await this.nodeService.createNode({ rsuID: message.receiverNodeID })
+        ).id;
+        nodeIDMap.set(message.receiverNodeID, destNodeID);
+      }
+
+      const event = new CommunicationEvents();
+      event.createdAt = convertUnixToFormat(message.timeStamp);
+      event.nodeId = nodeID;
+      event.cooperationClass = message.cooperationClass;
+      event.sessionId = message.sessionID;
+      event.messageType = message.messageType;
+      event.method = message.communicationType;
+      event.communicationClass = message.communicationClass;
+
+      event.destNode = message.receiverNodeID != 'B' ? destNodeID : null;
+
+      event.srcNode = message.senderNodeID != 'B' ? srcNodeID : null;
+      event.detail = '';
+      event.status = event.detail.length > 0 ? 2 : 1;
+      eventList.push(event);
+    }
+
+    return eventList;
+  }
+
+  // @Cron('0 */1 * * * *')
+  // async cronJobUpdateAvailData() {
+  //   // get latest data
+  //   const res = await HttpHelper.get({
+  //     url: `${process.env.EDGE_SYSTEM_DOMAIN}/edge/status`,
+  //     headers: {
+  //       'api-key': process.env.X_API_KEY,
+  //     },
+  //   });
+
+  //   if (res?.status !== 200) {
+  //     return;
+  //   }
+
+  //   const eventList = [];
+  //   const statusList = res.data.statusList;
+
+  //   for (let status of statusList) {
+  //     let node = await this.nodeService.findOne({ customId: status.nodeID });
+
+  //     if (!node) {
+  //       node = new Nodes();
+  //       node.customId = status.nodeID;
+  //     }
+  //     node.name = status.rsuName;
+  //     node.latitude = status.latitude;
+  //     node.longitude = status.longitude;
+
+  //     const result = await this.NodesRepo.save(node);
+
+  //     let event = new AvailabilityEvents();
+  //     event.nodeId = result.id;
+  //     event.createdAt = convertUnixToFormat(status.timeStamp);
+  //     event.cpuUsage = status.cpuUsage;
+  //     event.cpuTemp = status.cpuTemperature;
+  //     event.ramUsage = status.ramUsage;
+  //     event.diskUsage = status.diskUsage;
+  //     event.networkStatus = status.rsuConnection == true ? 1 : 2;
+  //     event.networkSpeed = status.networkSpeed ? status.networkSpeed : null;
+  //     event.networkUsage = status.networkUsage ? status.networkUsage : null;
+  //     event.detail = await this.defineErrorMessage(1, event);
+  //     event.status = event.detail.length > 0 ? 2 : 1;
+
+  //     eventList.push(event);
+  //   }
+
+  //   await this.availabilityEventsRepository.save(eventList);
+  // }
+
+  // @Cron('0 */1 * * * *')
+  // async cronJobUpdateCommData() {
+  //   // get latest data
+  //   const res = await HttpHelper.get({
+  //     url: `${process.env.EDGE_SYSTEM_DOMAIN}/edge/message`,
+  //     headers: {
+  //       'api-key': process.env.X_API_KEY,
+  //     },
+  //   });
+
+  //   if (res?.status !== 200) {
+  //     return;
+  //   }
+
+  //   const messageList = res.data.messageList;
+
+  //   const nodeIDMap = (await this.nodeService.getMapNodeList()).customMap;
+  //   const eventList = [];
+
+  //   for (let message of messageList) {
+  //     const event = new CommunicationEvents();
+  //     event.createdAt = convertUnixToFormat(message.timeStamp);
+  //     event.nodeId = nodeIDMap.get(message.nodeID);
+  //     event.cooperationClass = message.cooperationClass;
+  //     event.sessionId = message.sessionID;
+  //     event.messageType = message.messageType;
+  //     event.method = message.communicationType;
+  //     event.communicationClass = message.communicationClass;
+
+  //     event.destNode =
+  //       message.receiverNodeID != 'B'
+  //         ? nodeIDMap.get(message.receiverNodeID)
+  //         : null;
+
+  //     event.srcNode =
+  //       message.senderNodeID != 'B'
+  //         ? nodeIDMap.get(message.senderNodeID)
+  //         : null;
+
+  //     eventList.push(event);
+  //   }
+  //   await this.communicationEventsRepository.save(eventList);
+  // }
 }

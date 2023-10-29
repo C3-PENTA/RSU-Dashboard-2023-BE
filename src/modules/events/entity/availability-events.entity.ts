@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { AbstractEntity } from 'src/common/abstract.entity';
 import { Nodes } from 'src/modules/nodes/entity/nodes.entity';
 import {
   Column,
@@ -10,54 +11,44 @@ import {
 } from 'typeorm';
 
 @Entity()
-export class AvailabilityEvents {
+export class AvailabilityEvents extends AbstractEntity {
   @ApiProperty()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Column('uuid', { name: 'node_id' })
+  nodeId: string;
 
   @ApiProperty()
-  @Column('uuid')
-  node_id: string;
+  @Column({ name: 'cpu_usage', type: 'integer', nullable: true })
+  cpuUsage: number;
 
   @ApiProperty()
-  @Column()
-  cpu_usage: number;
+  @Column({ name: 'cpu_temp', type: 'integer', nullable: true })
+  cpuTemp: number;
 
   @ApiProperty()
-  @Column()
-  cpu_temp: number;
+  @Column({ name: 'ram_usage', type: 'integer', nullable: true })
+  ramUsage: number;
 
   @ApiProperty()
-  @Column()
-  ram_usage: number;
+  @Column({ name: 'disk_usage', type: 'integer', nullable: true })
+  diskUsage: number;
 
   @ApiProperty()
-  @Column()
-  disk_usage: number;
+  @Column({ name: 'network_speed', type: 'integer', nullable: true })
+  networkSpeed: number;
 
   @ApiProperty()
-  @Column()
-  network_speed: number;
+  @Column({ name: 'network_usage', type: 'integer', nullable: true })
+  networkUsage: number;
 
   @ApiProperty()
-  @Column()
-  network_usage: number;
+  @Column({ name: 'network_status', type: 'integer', nullable: true })
+  networkStatus: number;
 
   @ApiProperty()
-  @Column()
-  network_status: number;
-
-  @CreateDateColumn({
-    type: 'timestamptz',
-    default: () => 'now()',
-  })
-  public created_at: Date;
-
-  @ApiProperty()
-  @Column()
+  @Column({ name: 'status', type: 'integer' })
   status: number;
 
   @ApiProperty()
-  @Column()
+  @Column({ name: 'detail', type: 'varchar', nullable: true })
   detail: string;
 }

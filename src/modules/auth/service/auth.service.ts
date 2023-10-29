@@ -7,7 +7,7 @@ import { TokenPayload, UserInfo } from '../interface';
 import * as crypto from 'crypto'
 import * as path from 'path'
 import * as fs from 'fs'
-import { checkExistFolder } from 'src/util/checkExistFolder';
+import { checkExistFolder } from '@util/function';
 
 @Injectable()
 export class AuthService {
@@ -144,10 +144,14 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException();
       }
-      await this.verifyHashedContent(token, user.refresh_token);
+      await this.verifyHashedContent(token, user.refreshToken);
       return user;
     } catch (err) {
       throw err;
     }
+  }
+
+  validateApiKey(apiKey: string) {
+    return apiKey === process.env.API_KEY;
   }
 }

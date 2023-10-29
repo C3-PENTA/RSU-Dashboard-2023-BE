@@ -1,4 +1,4 @@
-export class SummaryItem {
+export interface SummaryItemInf {
   nodeId: string;
   totalAvailabilityNormal?: number;
   totalAvailabilityError?: number;
@@ -12,7 +12,7 @@ export class SummaryItem {
   percentTotalCommunication?: number | string;
 }
 
-export class LatestEvents {
+export interface LatestEventInf {
   id: string;
   node_id: string;
   cpu_usage: number;
