@@ -1,3 +1,16 @@
+const dotenv = require('dotenv');
+dotenv.config()
+
+export const CORS_ORIGIN = [process.env.FE_URL, process.env.EDGE_SYSTEM_DOMAIN];
+
+export const CORS = {
+  origin: CORS_ORIGIN,
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  preflightContinue: false,
+};
+
+
 export const API_PATH = {
   GET_LIST_NODE: '/node/list',
   GET_CONNECTION: '/node/connection',

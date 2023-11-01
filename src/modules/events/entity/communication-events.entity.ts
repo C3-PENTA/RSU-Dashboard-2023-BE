@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { AbstractEntity } from 'src/common/abstract.entity';
-import { Column, Entity } from 'typeorm';
+import { Nodes } from 'src/modules/nodes/entity/nodes.entity';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 
 @Entity()
 export class CommunicationEvents extends AbstractEntity{
@@ -43,4 +44,16 @@ export class CommunicationEvents extends AbstractEntity{
   @ApiProperty()
   @Column({ name: 'detail', type: 'varchar', nullable: true })
   detail: string;
+
+  @ManyToOne(() => Nodes)
+  @JoinColumn({ name: 'node_id', referencedColumnName: 'id'})
+  node: Nodes;
+
+  @ManyToOne(() => Nodes)
+  @JoinColumn({ name: 'src_node', referencedColumnName: 'id'})
+  senderNode: Nodes;
+
+  @ManyToOne(() => Nodes)
+  @JoinColumn({ name: 'dest_node', referencedColumnName: 'id'})
+  receiverNode: Nodes;
 }

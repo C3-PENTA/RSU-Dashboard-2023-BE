@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 @Entity()
@@ -51,4 +52,8 @@ export class AvailabilityEvents extends AbstractEntity {
   @ApiProperty()
   @Column({ name: 'detail', type: 'varchar', nullable: true })
   detail: string;
+
+  @ManyToOne(() => Nodes)
+  @JoinColumn({ name: 'node_id', referencedColumnName: 'id'})
+  nodeEvent: Nodes;
 }

@@ -1,15 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CommunicationEvents } from 'src/modules/events/entity/communication-events.entity';
 import { EventsService } from 'src/modules/events/service/events.service';
 import { NodeService } from 'src/modules/nodes/service/nodes.service';
 import { Repository } from 'typeorm';
 import { enumToKeyValue } from '@util/handleEnumValue';
-import { EdgeSystemConnection, EventStatus, NetworkStatus } from 'src/constants';
+import {
+  EdgeSystemConnection,
+  EventStatus,
+  NetworkStatus,
+} from 'src/constants';
 import { Cron } from '@nestjs/schedule';
 import { AvailabilityEvents } from 'src/modules/events/entity/availability-events.entity';
 import { now } from 'moment';
 import { getUnixCurrentTime, randomChoice, randomNumber } from '@util/function';
+import {
+  IAvailEvent,
+  ICommEventList,
+  IKeepAliveMessage,
+} from '@interface/event.interface';
+import { GatewayService } from 'src/modules/gateway/service/gateway.service';
 
 interface RangeInf {
   min: number;
@@ -55,6 +65,8 @@ export class MonitorService {
     @InjectRepository(AvailabilityEvents)
     private availEventsRepo: Repository<AvailabilityEvents>,
     private nodeService: NodeService,
+    private eventService: EventsService,
+    private gatewayService: GatewayService,
   ) {
     this.autoRefresh = true;
     this.isCronJobEnabled = false;
@@ -100,25 +112,32 @@ export class MonitorService {
     };
   }
 
-  setStatusKeepAlive(status: string) {
-    this.isEdgeConnected = status;
-    return this.isEdgeConnected;
+  async getEdgeStatus(data: IAvailEvent) {
+    const event = await this.eventService.parseDataToAvailEvent(data);
+    const result = await this.eventService.saveEvent(1, event);
+    if (result.status == 2) {
+      const notification = { nodeID: data.nodeID, detail: event.detail };
+      this.gatewayService.server.emit('notification', notification);
+    }
+  }
+
+  async getEdgeMessageList(data: ICommEventList) {
+    const events = await this.eventService.parseDataToCommEvent(data);
+    const result = await this.eventService.saveEvent(2, events);
+  }
+
+  getEdgeKeepAlive(data: IKeepAliveMessage) {
+    if (data.timeStamp) {
+      this.isEdgeConnected = EdgeSystemConnection.Connected;
+      this.countDisconnect = 0;
+    }
   }
 
   getStatusKeepAlive() {
     return {
       status: this.isEdgeConnected,
-      count: this.countDisconnect
-    }
-  }
-
-  setCountDisconnect(count: number) {
-    this.countDisconnect = count;
-    return this.countDisconnect;
-  }
-
-  getCountDisconnect() {
-    return this.countDisconnect;
+      count: this.countDisconnect,
+    };
   }
 
   @Cron('* * * * * *')
@@ -128,7 +147,11 @@ export class MonitorService {
     } else if (this.countDisconnect > 180) {
       this.isEdgeConnected = EdgeSystemConnection.Disconnected;
     }
+
     this.countDisconnect += 1;
+    this.gatewayService.server.emit('keep-alive', {
+      status: this.isEdgeConnected,
+    });
   }
 
   // changeAvailEventProp(prop: AvailEventPropGenInf) {
@@ -246,24 +269,6 @@ export class MonitorService {
   //     eventList.push([sendEvent, receiveEvent]);
   //   }
   //   return eventList;
-  // }
-
-  // @Cron('0 */1 * * * *')
-  // async cronjobGenAvailabilityEvents() {
-  //   if (!this.isCronJobEnabled) {
-  //     return; // If the cron job is disabled, exit the function immediately
-  //   }
-  //   const events = await this.genAvailEvents();
-  //   return this.availEventsRepo.save(events);
-  // }
-
-  // @Cron('0 */1 * * * *')
-  // async cronjobGenCommunicationEvents() {
-  //   if (!this.isCronJobEnabled) {
-  //     return; // If the cron job is disabled, exit the function immediately
-  //   }
-  //   const events = await this.genCommEvents();
-  //   return this.commEventsRepo.save(events);
   // }
 }
 
