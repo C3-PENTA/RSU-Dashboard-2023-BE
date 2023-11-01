@@ -26,3 +26,39 @@ export interface LatestEventInf {
   status: string;
   created_at: Date;
 }
+
+export class IAvailEvent {
+  timeStamp: number;
+  nodeID: string;
+  rsuName: string;
+  cpuUsage: number;
+  cpuTemperature: number;
+  ramUsage: number;
+  diskUsage: number;
+  rsuConnection: boolean;
+  networkSpeed: number;
+  networkUsage: number;
+  latitude: number;
+  longitude: number;
+}
+
+export class ICommEvent {
+  timeStamp: number;
+  nodeID: string;
+  rsuName: string;
+  cooperationClass: string;
+  sessionID: number;
+  communicationType: string;
+  senderNodeID: string;
+  receiverNodeID: string;
+  messageType: string;
+  messageData: string;
+}
+
+export class ICommEventList {
+  messageList: ICommEvent[];
+}
+
+export class IKeepAliveMessage {
+  timeStamp: number;
+}

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -10,6 +11,8 @@ import { MonitorService } from '../service/monitor.service';
 import { USER_ROLE, Roles } from 'src/modules/role/decorator/role.decorator';
 import { RolesGuard } from 'src/modules/auth/guard/role.guard';
 import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.guard';
+import { ApiKeyAuthGuard } from 'src/modules/auth/guard/api-key.guard';
+import { AvailEventDTO, CommEventListDTO, KeepAliveDTO } from '../dto/event-prop.dto';
 
 @ApiTags('Monitor management')
 @Controller('monitor-management')
@@ -57,6 +60,36 @@ export class MonitorController {
     return { x: status };
   }
 
+  @Post('edge/status')
+  @UseGuards(ApiKeyAuthGuard)
+  @ApiBody({
+    description: '',
+    type: AvailEventDTO,
+  })
+  async getEdgeStatus(@Body() body: AvailEventDTO) {
+    return this.monitorService.getEdgeStatus(body);
+  }
+
+  @Post('edge/message')
+  @UseGuards(ApiKeyAuthGuard)
+  @ApiBody({
+    description: '',
+    type: CommEventListDTO,
+  })
+  async getEdgeMessageList(@Body() body: CommEventListDTO) {
+    return this.monitorService.getEdgeMessageList(body);
+  }
+
+  @Post('edge/keepalive')
+  @UseGuards(ApiKeyAuthGuard)
+  @ApiBody({
+    description: '',
+    type: KeepAliveDTO,
+  })
+  getEdgeKeepAlive(@Body() body: KeepAliveDTO) {
+    return this.monitorService.getEdgeKeepAlive(body);
+  }
+
   // @Get('generator/status')
   // @Roles(USER_ROLE.OPERATOR)
   // @UseGuards(JwtAccessTokenGuard, RolesGuard)
@@ -101,23 +134,5 @@ export class MonitorController {
   // })
   // async changeCommEventProp(@Body() prop: CommEventPropDTO) {
   //   return this.monitorService.changeCommEventProp(prop);
-  // }
-
-  // @Get('edge/status')
-  // @UseGuards(ApiKeyAuthGuard)
-  // async getEdgeStatusList() {
-  //   const statusList = await this.monitorService.genAvailEvents();
-  //   return {
-  //     statusList: statusList,
-  //   };
-  // }
-
-  // @Get('edge/message')
-  // @UseGuards(ApiKeyAuthGuard)
-  // async getEdgeMessageList() {
-  //   const messageList = await this.monitorService.genCommEvents();
-  //   return {
-  //     messageList: messageList,
-  //   };
   // }
 }

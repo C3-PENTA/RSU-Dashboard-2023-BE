@@ -30,6 +30,7 @@ import {
   randomChoice,
   randomNumber,
 } from '@util/function';
+import { GatewayService } from 'src/modules/gateway/service/gateway.service';
 
 @Injectable()
 export class EventsService {
@@ -42,14 +43,15 @@ export class EventsService {
     private NodesRepo: Repository<Nodes>,
     private nodeService: NodeService,
     private ignoreEventsService: IgnoreEventsService,
+    private gatewayService: GatewayService
   ) {}
 
   async saveEvent(type: number, events: any) {
     try {
       if (type === 1) {
-        await this.availabilityEventsRepository.save(events);
+        return this.availabilityEventsRepository.save(events);
       } else if (type === 2) {
-        await this.communicationEventsRepository.save(events);
+        return this.communicationEventsRepository.save(events);
       }
     } catch (err) {
       console.error(err);
@@ -411,7 +413,7 @@ export class EventsService {
 
       return {
         eventId: ele.id,
-        nodeId: ele.rsuID,
+        nodeId: ele.rsu_id,
         nodeType: ele.type,
         cpuUsage: ele.cpu_usage,
         cpuTemp: ele.cpu_temp,
@@ -1066,7 +1068,7 @@ export class EventsService {
     return result.sort((a, b) => a.id.localeCompare(b.id));
   }
 
-  async parseDataToAvaiEvent(message: any) {
+  async parseDataToAvailEvent(message: any) {
     let node = await this.nodeService.findOne({ rsuID: message.nodeID });
 
     if (!node) {

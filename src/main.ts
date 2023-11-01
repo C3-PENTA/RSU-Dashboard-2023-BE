@@ -3,17 +3,14 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import { AuthAdapter } from './modules/auth/service/auth.adapter';
+import { CORS } from './constants';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors({
-    origin: [process.env.FE_URL],
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-    credentials: true,
-  });
+  app.enableCors(CORS);
 
   app.use(cookieParser());
-  app.useWebSocketAdapter(new AuthAdapter(app));
+  // app.useWebSocketAdapter(new AuthAdapter(app));
 
   app.setGlobalPrefix('api');
   const options = new DocumentBuilder()
