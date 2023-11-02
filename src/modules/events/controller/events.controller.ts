@@ -151,19 +151,6 @@ export class EventsController {
     }
   }
 
-  @Get('new-events')
-  @ApiQuery({ name: 'type', required: true })
-  @ApiOperation({
-    description: 'get newsEvents',
-  })
-  @ApiOkResponse({
-    status: 200,
-    description: '',
-  })
-  async getNewEvents(@Query('type') type: number) {
-    return this.eventsService.getNewEvents();
-  }
-
   @Post('export/log')
   @ApiOperation({ summary: 'Export log data to CSV' })
   @ApiBody({ type: ExportDataDto })
