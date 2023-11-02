@@ -428,53 +428,6 @@ export class EventsService {
     });
   }
 
-  async getNewEvents() {
-    const lastUpdated = new Date();
-    const now = new Date();
-    lastUpdated.setMinutes(lastUpdated.getMinutes() - 1);
-
-    const avaiEvents = await this.availabilityEventsRepository
-      .createQueryBuilder('events')
-      .select([
-        'events.id as id',
-        'nodes.rsu_id as "nodeId"',
-        'events.detail as detail',
-      ])
-      .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
-      .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
-        lastUpdated,
-        now,
-      })
-      .andWhere('events.status = 2')
-      .getRawMany();
-
-    const commEvents = await this.communicationEventsRepository
-      .createQueryBuilder('events')
-      .select([
-        'events.id as id',
-        'nodes.rsu_id as "nodeId"',
-        'events.detail as detail',
-      ])
-      .innerJoin(Nodes, 'nodes', 'events.node_id = nodes.id')
-      .where('events.created_at > :lastUpdated AND events.created_at <= :now', {
-        lastUpdated,
-        now,
-      })
-      .andWhere('events.status = 2')
-      .getRawMany();
-
-    const result = [...avaiEvents, ...commEvents];
-
-    return result.map((event) => {
-      return {
-        id: event.id,
-        nodeId: event.nodeId,
-        detail: event.detail,
-        status: event.status,
-      };
-    });
-  }
-
   async exportLogData(type: number, eventIds: string[], log: boolean) {
     try {
       if (type == 1) {
@@ -1151,20 +1104,20 @@ export class EventsService {
     return eventList;
   }
 
-  // @Cron('0 */1 * * * *')
   // async cronJobUpdateAvailData() {
   //   // get latest data
-  //   const res = await HttpHelper.get({
+  //   const res = await HttpHelper.post({
   //     url: `${process.env.EDGE_SYSTEM_DOMAIN}/edge/status`,
   //     headers: {
-  //       'api-key': process.env.X_API_KEY,
+  //       'api-key': process.env.API_KEY,
   //     },
   //   });
 
+  //   console.log(res);
   //   if (res?.status !== 200) {
   //     return;
   //   }
-
+  // }
   //   const eventList = [];
   //   const statusList = res.data.statusList;
 
