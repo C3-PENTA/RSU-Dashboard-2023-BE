@@ -31,6 +31,7 @@ import {
   randomNumber,
 } from '@util/function';
 import { GatewayService } from 'src/modules/gateway/service/gateway.service';
+import { DoorStatus } from '../entity/door-status.entity';
 
 @Injectable()
 export class EventsService {
@@ -39,11 +40,12 @@ export class EventsService {
     private communicationEventsRepository: Repository<CommunicationEvents>,
     @InjectRepository(AvailabilityEvents)
     private availabilityEventsRepository: Repository<AvailabilityEvents>,
+    @InjectRepository(DoorStatus)
+    private doorStatusRepository: Repository<DoorStatus>,
     @InjectRepository(Nodes)
     private NodesRepo: Repository<Nodes>,
     private nodeService: NodeService,
     private ignoreEventsService: IgnoreEventsService,
-    private gatewayService: GatewayService
   ) {}
 
   async saveEvent(type: number, events: any) {
@@ -108,8 +110,11 @@ export class EventsService {
     endDate: Date,
     nodeId: string[],
     status: number,
-    drivingNegotiationClass: number[],
-    messageType: number[],
+    cooperationClass: string[],
+    messageType: string[],
+    sessionID: string[],
+    communicationClass: string[],
+    communicationMethod: string[],
     limit: number,
     page: number,
     sortBy: string,
@@ -156,16 +161,34 @@ export class EventsService {
 
       queryBuilder = queryBuilder
         .andWhere(
-          drivingNegotiationClass && drivingNegotiationClass.length
-            ? 'events.cooperation_class IN (:...drivingNegotiationClass)'
+          cooperationClass && cooperationClass.length
+            ? 'events.cooperation_class IN (:...cooperationClass)'
             : '1=1',
-          { drivingNegotiationClass },
+          { cooperationClass },
         )
         .andWhere(
           messageType && messageType.length
             ? 'events.message_type IN(:...messageType)'
             : '1=1',
           { messageType },
+        )
+        .andWhere(
+          sessionID && sessionID.length
+            ? 'events.session_id IN(:...sessionID)'
+            : '1=1',
+          { sessionID },
+        )
+        .andWhere(
+          communicationClass && communicationClass.length
+            ? 'events.communication_class IN(:...communicationClass)'
+            : '1=1',
+          { communicationClass },
+        )
+        .andWhere(
+          communicationMethod && communicationMethod.length
+            ? 'events.method IN(:...communicationMethod)'
+            : '1=1',
+          { communicationMethod },
         );
     }
 
@@ -235,7 +258,7 @@ export class EventsService {
           cooperationClass: event.drivingNegotiationsClass,
           communicationClass: event.communicationClass,
           sessionID: event.sessionID,
-          method: event.method,
+          communicationMethod: event.method,
           messageType: event.messageType,
           detail: event.detail,
           status: event.status,
@@ -374,58 +397,59 @@ export class EventsService {
       WITH latest_event AS (
         SELECT
           e.id,
-          NOW() as now,
+          e.node_id,
+          e.cpu_usage,
+          e.cpu_temp,
+          e.ram_usage,
+          e.disk_usage,
+          e.network_speed,
+          e.network_usage,
+          e.network_status,
+          e.created_at,
           ROW_NUMBER() OVER (
             PARTITION BY e.node_id
-            ORDER BY e.created_at DESC
+            ORDER BY e.created_at desc
           ) AS row_number
         FROM public.availability_events AS e
         WHERE e.created_at BETWEEN NOW() - INTERVAL '2 minutes' AND NOW()
       )
-      
+    
       SELECT
-        le.id,
-        nodes.rsu_id,
-        nodes.name,
-        e.cpu_usage,
-        e.cpu_temp,
-        e.ram_usage,
-        e.disk_usage,
-        e.network_speed,
-        e.network_usage,
-        e.network_status,
-        e.created_at,
-        le.now
-      FROM latest_event as le
-      JOIN public.availability_events AS e ON le.id = e.id
-      JOIN public.nodes as nodes ON e.node_id = nodes.id
-      WHERE le.row_number = 1
-      ORDER BY nodes.rsu_id
+        n.id AS "nodeID",
+        n.rsu_id AS "rsuID",
+        n.name AS "rsuName",
+        le.cpu_usage AS "cpuUsage",
+        le.cpu_temp AS "cpuTemp",
+        le.ram_usage AS "ramUsage",
+        le.disk_usage AS "diskUsage",
+        le.network_speed AS "networkSpeed",
+        le.network_usage AS "networkUsage",
+        le.network_status AS "networkStatus",
+        le.created_at AS "createdAt"
+      FROM public.nodes AS n
+      LEFT JOIN latest_event as le ON n.id = le.node_id
+      WHERE le.row_number = 1 OR le.row_number IS NULL 
+      ORDER BY rsu_id ASC
     `;
 
-    const result = await this.availabilityEventsRepository.query(query);
-    return result.map((ele) => {
-      ele.network_speed = ele.network_speed ?? '-';
-      if (ele.network_speed != '-') ele.network_speed += ' Mbps';
+    const queryResult = await this.availabilityEventsRepository.query(query);
 
-      ele.network_usage = ele.network_usage ?? '-';
-      if (ele.network_usage != '-') ele.network_usage += ' Byte';
-
+    const result = queryResult.map((e) => {
       return {
-        eventId: ele.id,
-        nodeId: ele.rsu_id,
-        nodeType: ele.type,
-        cpuUsage: ele.cpu_usage,
-        cpuTemp: ele.cpu_temp,
-        ramUsage: ele.ram_usage,
-        diskUsage: ele.disk_usage,
-        networkSpeed: ele.network_speed,
-        networkUsage: ele.network_usage,
-        networkStatus: NetworkStatus[ele.network_status],
-        createdAt: ele.created_at,
-        now: ele.now,
+        nodeID: e.nodeID,
+        rsuID: e.rsuID,
+        rsuName: e.rsuName,
+        cpuUsage: e.cpuUsage,
+        cpuTemp: e.cpuTemp,
+        ramUsage: e.ramUsage,
+        diskUsage: e.diskUsage,
+        networkSpeed: e.networkSpeed,
+        networkUsage: e.networkUsage,
+        networkStatus: NetworkStatus[e.networkStatus],
+        createdAt: e.createdAt,
       };
     });
+    return result;
   }
 
   async exportLogData(type: number, eventIds: string[], log: boolean) {
@@ -959,6 +983,7 @@ export class EventsService {
           // Last 30 days
           if (period === 'month') {
             fromDate.setDate(fromDate.getDate() - 30);
+            now.setDate(now.getDate() + 1);
 
             rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('event')
@@ -972,10 +997,13 @@ export class EventsService {
               .groupBy('DATE(event.created_at)')
               .orderBy('timestamp')
               .execute()) as Promise<{ date: string; average: number }[]>;
+            
+            // rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
           }
           // Last 24 hours
           if (period === 'date') {
-            fromDate.setHours(fromDate.getHours() - 24);
+            fromDate.setHours(fromDate.getHours() - 23);
+            now.setHours(now.getHours());
 
             rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('usage')
@@ -989,10 +1017,14 @@ export class EventsService {
               .groupBy("DATE_TRUNC('hour', usage.created_at)")
               .orderBy('timestamp')
               .execute()) as Promise<{ hour: Date; average: number }[]>;
+
+            rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
           }
           // Last 60 minutes
           if (period === 'hour') {
+
             fromDate.setMinutes(fromDate.getMinutes() - 60);
+            now.setMinutes(now.getMinutes() + 2)
 
             rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('usage')
@@ -1006,7 +1038,10 @@ export class EventsService {
               .groupBy("DATE_TRUNC('minute', usage.created_at)")
               .orderBy('timestamp')
               .execute()) as Promise<{ minute: string; average: number }[]>;
+            
+            rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
           }
+
           rsuUsage !== undefined &&
             rsuUsage.length !== 0 &&
             result.push({
@@ -1036,14 +1071,18 @@ export class EventsService {
 
     let event = new AvailabilityEvents();
     event.nodeId = result.id;
-    event.createdAt = convertUnixToFormat(message.timeStamp);
+    if (message.timeStamp) {
+      event.createdAt = convertUnixToFormat(message.timeStamp);
+    }
     event.cpuUsage = message.cpuUsage;
     event.cpuTemp = message.cpuTemperature;
     event.ramUsage = message.ramUsage;
     event.diskUsage = message.diskUsage;
     event.networkStatus = message.rsuConnection == true ? 1 : 2;
-    event.networkSpeed = message.networkSpeed ? message.networkSpeed : null;
-    event.networkUsage = message.networkUsage ? message.networkUsage : null;
+    event.networkSpeed =
+      message.networkSpeed != null ? message.networkSpeed : null;
+    event.networkUsage =
+      message.networkUsage != null ? message.networkUsage : null;
     event.detail = await this.defineErrorMessage(1, event);
     event.status = event.detail.length > 0 ? 2 : 1;
     return event;
@@ -1085,7 +1124,9 @@ export class EventsService {
       }
 
       const event = new CommunicationEvents();
-      event.createdAt = convertUnixToFormat(message.timeStamp);
+      if (message.timeStamp) {
+        event.createdAt = convertUnixToFormat(message.timeStamp);
+      }
       event.nodeId = nodeID;
       event.cooperationClass = message.cooperationClass;
       event.sessionId = message.sessionID;
@@ -1102,6 +1143,43 @@ export class EventsService {
     }
 
     return eventList;
+  }
+
+  async parseDataToDoorStatus(message: any) {
+    const doorStatus = new DoorStatus;
+    doorStatus.status = message.doorStatus;
+    doorStatus.createdAt = convertUnixToFormat(message.timestamp);
+    await this.doorStatusRepository.save(doorStatus);
+  }
+
+  async getDoorStatusInfoList(page: number, limit: number) {
+    const queryBuilder = this.doorStatusRepository
+    .createQueryBuilder('door_status')
+    .select([
+      'door_status.id as id',
+      'door_status.status as status',
+      'door_status.created_at as timestamp',
+    ])
+    .orderBy('door_status.created_at', 'DESC')
+
+    const result = await queryBuilder
+      .limit(limit)
+      .offset(page == 1 ? 0 : (page - 1) * limit)
+      .getRawMany();
+
+    const total = await queryBuilder.getCount();
+
+    const totalPages = limit ? Math.ceil(total / limit) : 1;
+
+    return {
+      events: result,
+      meta: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: total,
+        perPage: limit,
+      },
+    };
   }
 
   // async cronJobUpdateAvailData() {
@@ -1196,4 +1274,58 @@ export class EventsService {
   //   }
   //   await this.communicationEventsRepository.save(eventList);
   // }
+
+  async testTime() {
+    const now = new Date();
+    const fromDate = new Date();
+
+    fromDate.setDate(fromDate.getDate() - 30);
+    now.setDate(now.getDate() + 1);
+    return generateTimestamps(fromDate, now, 'month');
+  }
+
+}
+
+const generateTimestamps = (fromDate: Date, now: Date, type: string): Date[] => {
+  const timestamps: Date[] = [];
+  let currentTimestamp = new Date(fromDate);
+
+  while (currentTimestamp <= now) {    
+    if (type == 'hour') {
+      currentTimestamp.setMinutes(currentTimestamp.getMinutes() + 0, 0, 0);
+    } else if (type == 'date') {
+      currentTimestamp.setHours(currentTimestamp.getHours() + 0, 0, 0, 0);
+    } else {
+      currentTimestamp.setDate(currentTimestamp.getDate() + 0);
+    }
+    
+    const timestamp = new Date(currentTimestamp);
+    timestamps.push(timestamp);
+
+    if (type == 'hour') {
+      currentTimestamp.setMinutes(currentTimestamp.getMinutes() + 1, 0, 0);
+    } else if (type == 'date') {
+      currentTimestamp.setHours(currentTimestamp.getHours() + 1, 0, 0);
+    } else {
+      currentTimestamp.setDate(currentTimestamp.getDate() + 1);
+    }
+  }
+
+  return timestamps;
+};
+
+const spreadDataWithTimeStamp = (rsuUsage: any, startDate: Date, endDate: Date, type: string) => {
+  const timestamp = generateTimestamps(startDate, endDate, type);
+  const resultMap = new Map(
+    rsuUsage.map((entry) => [String(entry.timestamp), entry]),
+  );
+
+  rsuUsage = timestamp.map((ts) => {
+    const resultEntry = resultMap.get(String(ts));
+    return resultEntry
+      ? resultEntry
+      : { timestamp: ts, average: null };
+  });
+
+  return rsuUsage;
 }

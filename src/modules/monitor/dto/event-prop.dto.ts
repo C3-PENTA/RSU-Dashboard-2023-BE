@@ -154,3 +154,8 @@ export class KeepAliveDTO {
   @ApiProperty({type: 'number'})
   timeStamp: number;
 }
+
+export class DoorStatusDTO {
+  @ApiProperty({type: 'string'})
+  doorStatus: string;
+}

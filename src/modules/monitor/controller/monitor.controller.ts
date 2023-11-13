@@ -12,14 +12,14 @@ import { USER_ROLE, Roles } from 'src/modules/role/decorator/role.decorator';
 import { RolesGuard } from 'src/modules/auth/guard/role.guard';
 import { JwtAccessTokenGuard } from 'src/modules/auth/guard/jwt-access-token.guard';
 import { ApiKeyAuthGuard } from 'src/modules/auth/guard/api-key.guard';
-import { AvailEventDTO, CommEventListDTO, KeepAliveDTO } from '../dto/event-prop.dto';
+import { AvailEventDTO, CommEventListDTO, DoorStatusDTO, KeepAliveDTO } from '../dto/event-prop.dto';
 
 @ApiTags('Monitor management')
-@Controller('monitor-management')
+@Controller('')
 export class MonitorController {
   constructor(private monitorService: MonitorService) {}
 
-  @Get('auto-refresh')
+  @Get('monitor-management/auto-refresh')
   @UseGuards(JwtAccessTokenGuard)
   @ApiOperation({
     description: `Get list auto refresh`,
@@ -32,7 +32,7 @@ export class MonitorController {
     return this.monitorService.getAutoRefresh();
   }
 
-  @Post('auto-refresh/:state')
+  @Post('monitor-management/auto-refresh/:state')
   @Roles(USER_ROLE.OPERATOR)
   @UseGuards(JwtAccessTokenGuard, RolesGuard)
   @ApiOperation({
@@ -46,48 +46,55 @@ export class MonitorController {
     return this.monitorService.setAutoRefresh(state);
   }
 
-  @Get('metadata')
+  @Get('monitor-management/metadata')
   @UseGuards(JwtAccessTokenGuard)
   @ApiOperation({ description: 'Get metadata' })
   async getMetadata() {
     return this.monitorService.getMetadata();
   }
 
-  @Get('edge-connection')
-  @ApiOperation({ description: 'Get status of Edge System Connection'})
-  getStatusEdgeSystemConnection() {
-    const status = this.monitorService.getStatusKeepAlive();
-    return { x: status };
-  }
-
   @Post('edge/status')
-  @UseGuards(ApiKeyAuthGuard)
+  // @UseGuards(ApiKeyAuthGuard)
   @ApiBody({
     description: '',
     type: AvailEventDTO,
   })
   async getEdgeStatus(@Body() body: AvailEventDTO) {
+    console.log('Data receive: ', body);
     return this.monitorService.getEdgeStatus(body);
   }
 
   @Post('edge/message')
-  @UseGuards(ApiKeyAuthGuard)
+  // @UseGuards(ApiKeyAuthGuard)
   @ApiBody({
     description: '',
     type: CommEventListDTO,
   })
   async getEdgeMessageList(@Body() body: CommEventListDTO) {
+    console.log('Data receive: ', body);
     return this.monitorService.getEdgeMessageList(body);
   }
 
   @Post('edge/keepalive')
-  @UseGuards(ApiKeyAuthGuard)
+  // @UseGuards(ApiKeyAuthGuard)
   @ApiBody({
     description: '',
     type: KeepAliveDTO,
   })
   getEdgeKeepAlive(@Body() body: KeepAliveDTO) {
+    console.log('Data receive: ', body);
     return this.monitorService.getEdgeKeepAlive(body);
+  }
+
+  @Post('sensor/door-status')
+  // @UseGuards(ApiKeyAuthGuard)
+  @ApiBody({
+    description: '',
+    type: DoorStatusDTO,
+  })
+  getDoorStatus(@Body() body: DoorStatusDTO) {
+    console.log('Data receive: ', body);
+    return this.monitorService.getDoorStatus(body);
   }
 
   // @Get('generator/status')

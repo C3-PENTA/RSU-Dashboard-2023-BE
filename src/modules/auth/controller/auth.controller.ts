@@ -94,35 +94,4 @@ export class AuthController {
     res.clearCookie('accessToken');
     await this.authService.signOut(user);
   }
-
-  // @ApiOperation({ summary: 'Sign in to the application' })
-  // @ApiBody({
-  //   description: 'Enter your credentials to sign in',
-  //   type: SignInDto,
-  // })
-  // @ApiResponse({ status: 401, description: 'Unauthorized' })
-  // @ApiOkResponse({ description: 'Login successful' })
-  // @UseGuards(LocalAuthGuard)
-  // @Post('test')
-  // async test(@Request() req, @Res({ passthrough: true }) response: Response) {
-  //   try {
-  //     await this.authService.generateKeyPair('cuong');
-  //     // const token = await this.authService.getAccessKey(req.user);
-  //     // const accessToken = token.accessToken;
-  //     // const refreshToken = token.refreshToken;
-  //     // response.cookie('accessToken', accessToken, {
-  //     //   maxAge: 3600000, //1h
-  //     //   httpOnly: false,
-  //     //   secure: true,
-  //     // });
-  //     // response.cookie('refreshToken', refreshToken, {
-  //     //   maxAge: 3600000 * 24 * 3, // 3 days
-  //     //   httpOnly: false,
-  //     //   secure: true,
-  //     // });
-  //     // return { message: 'Successful Authentication'};
-  //   } catch (err) {
-  //     throw err;
-  //   }
-  // }
 }
