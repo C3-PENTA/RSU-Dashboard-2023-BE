@@ -50,8 +50,11 @@ export class EventsController {
   @ApiQuery({ name: 'end-date', required: false, type: Date })
   @ApiQuery({ name: 'node-id', required: false })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'driving-negotiation-class', required: false })
+  @ApiQuery({ name: 'cooperation-class', required: false })
   @ApiQuery({ name: 'message-type', required: false })
+  @ApiQuery({ name: 'session-id', required: false })
+  @ApiQuery({ name: 'communication-class', required: false })
+  @ApiQuery({ name: 'communication-method', required: false })
   @ApiQuery({
     name: 'sort',
     required: false,
@@ -74,8 +77,11 @@ export class EventsController {
     @Query('end-date') endDate: Date,
     @Query('node-id') nodeIds: string[],
     @Query('status') status: number,
-    @Query('driving-negotiation-class') drivingNegotiationClass: number[],
-    @Query('message-type') messageType: number[],
+    @Query('cooperation-class') cooperationClass: string[],
+    @Query('message-type') messageType: string[],
+    @Query('session-id') sessionID: string[],
+    @Query('communication-class') communicationClass: string[],
+    @Query('communication-method') communicationMethod: string[],
     @Query('sort') sortBy: string,
     @Query('order') sortOrder: 'asc' | 'desc',
   ) {
@@ -84,21 +90,49 @@ export class EventsController {
     const endD = endDate ? new Date(endDate) : null;
     if (endD) endD.setDate(endD.getDate() + 1);
 
+    console.log('Node IDS', nodeIds);
     //handle query list
     const nodeIdArray = nodeIds
       ? Array.isArray(nodeIds)
         ? nodeIds
         : [nodeIds]
       : null;
-    const drivingNegotiationClassArray = drivingNegotiationClass
-      ? Array.isArray(drivingNegotiationClass)
-        ? drivingNegotiationClass
-        : [drivingNegotiationClass]
+
+    // handle filter cooperation class
+    const cooperationClassArray = cooperationClass
+      ? Array.isArray(cooperationClass)
+        ? cooperationClass
+        : [cooperationClass]
       : null;
+
+    // handle filter message type
     const messageTypeArray = messageType
       ? Array.isArray(messageType)
         ? messageType
         : [messageType]
+      : null;
+
+    // handle filter sessionID
+    const sessionIDArray = sessionID
+      ? Array.isArray(sessionID)
+        ? sessionID
+        : [sessionID]
+      : null;
+
+    // handle filter communication class
+    const communicationClassArray = communicationClass
+      ? Array.isArray(communicationClass)
+        ? communicationClass
+        : [communicationClass]
+      : null;
+
+    console.log('Check', communicationClassArray);
+
+    // handle filter communication method
+    const communicationMethodArray = communicationMethod
+      ? Array.isArray(communicationMethod)
+        ? communicationMethod
+        : [communicationMethod]
       : null;
 
     return this.eventsService.getEventsList(
@@ -107,8 +141,11 @@ export class EventsController {
       endD,
       nodeIdArray,
       status,
-      drivingNegotiationClassArray,
+      cooperationClassArray,
       messageTypeArray,
+      sessionIDArray,
+      communicationClassArray,
+      communicationMethodArray,
       limit,
       page,
       sortBy,
@@ -124,7 +161,7 @@ export class EventsController {
     status: 200,
     description: '',
   })
-  @ApiQuery({ name: 'time_range', required: true, enum: ['all', 'hour_ago']})
+  @ApiQuery({ name: 'time_range', required: true, enum: ['all', 'hour_ago'] })
   async getEventsSummary(@Query('time_range') time_range: string) {
     const result = await this.eventsService.getEventsSummary(time_range);
     return {
@@ -305,10 +342,10 @@ export class EventsController {
     description: '',
   })
   async getNotifications(@Query('username') username: string) {
-    const results = await this.eventsService.pushNotification(username)
+    const results = await this.eventsService.pushNotification(username);
     return {
-      "notification": results,
-    }
+      notification: results,
+    };
   }
 
   @Get(API_PATH.GET_RSU_USAGE)
@@ -317,11 +354,41 @@ export class EventsController {
   })
   @ApiOkResponse({
     status: 200,
-    description: ''
+    description: '',
   })
   @ApiQuery({ name: 'type', required: true, enum: ['ram', 'cpu', 'disk'] })
   @ApiQuery({ name: 'period', required: true, enum: ['month', 'date', 'hour'] })
-  async getRSUUsage(@Query('type') type: string, @Query('period') period: string) {
+  async getRSUUsage(
+    @Query('type') type: string,
+    @Query('period') period: string,
+  ) {
     return await this.eventsService.getRSUUsage(type, period);
+  }
+
+  @Get('door-status')
+  @ApiOperation({
+    description: 'get door status list',
+  })
+  @ApiOkResponse({
+    status: 200,
+    description: '',
+  })
+  @ApiQuery({ name: 'page', required: true })
+  @ApiQuery({ name: 'limit', required: true })
+  async getDoorStatusList(@Query('page') page, @Query('limit') limit) {
+    return this.eventsService.getDoorStatusInfoList(page, limit);
+  }
+
+  @Get('test')
+  @ApiOperation({
+    description: '',
+  })
+  @ApiOkResponse({
+    status: 200,
+    description: '',
+  })
+  async test(
+  ) {
+    return this.eventsService.testTime();
   }
 }

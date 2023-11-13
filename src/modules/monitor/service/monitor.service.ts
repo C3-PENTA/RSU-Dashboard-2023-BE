@@ -94,20 +94,42 @@ export class MonitorService {
       .select('comm_event.cooperation_class')
       .distinct(true)
       .getRawMany();
+    
+    const sessionID = await this.commEventsRepo
+      .createQueryBuilder('comm_event')
+      .select('comm_event.session_id')
+      .distinct(true)
+      .getRawMany();
+    
+    const communicationClass = await this.commEventsRepo
+      .createQueryBuilder('comm_event')
+      .select('comm_event.communication_class')
+      .distinct(true)
+      .getRawMany();
 
     const messageType = await this.commEventsRepo
       .createQueryBuilder('comm_event')
       .select('comm_event.message_type')
       .distinct(true)
       .getRawMany();
+    
+    const communicationMethod = await this.commEventsRepo
+      .createQueryBuilder('comm_event')
+      .select('comm_event.method')
+      .distinct(true)
+      .getRawMany();
+
 
     return {
       nodeList: nodeMap,
       eventStatus: enumToKeyValue(EventStatus),
-      drivingNegotiationsClass: convertJsonArrayToObject(
+      cooperationClass: convertJsonArrayToObject(
         cooperationClass,
         'cooperation_class',
       ),
+      sessionID: convertJsonArrayToObject(sessionID, 'session_id'),
+      communicationClass: convertJsonArrayToObject(communicationClass,'communication_class'),
+      communicationMethod: convertJsonArrayToObject(communicationMethod, 'comm_event_method'),
       messageType: convertJsonArrayToObject(messageType, 'message_type'),
     };
   }
@@ -140,6 +162,10 @@ export class MonitorService {
     };
   }
 
+  getDoorStatus(data: { doorStatus: string }) {
+    return this.eventService.parseDataToDoorStatus(data);
+  }
+
   @Cron('* * * * * *')
   async keepAliveWithEdgeSystem() {
     if (this.countDisconnect > 60 && this.countDisconnect <= 180) {
@@ -149,6 +175,7 @@ export class MonitorService {
     }
 
     this.countDisconnect += 1;
+
     this.gatewayService.server.emit('keep-alive', {
       status: this.isEdgeConnected,
     });
@@ -277,7 +304,7 @@ const convertJsonArrayToObject = (jsonArray: any[], key: string) => {
 
   for (const item of jsonArray) {
     const value = item[key];
-    jsonObject[value] = value;
+    if (value) jsonObject[value] = value;
   }
 
   return jsonObject;

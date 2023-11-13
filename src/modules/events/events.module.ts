@@ -10,6 +10,7 @@ import { NodeModule } from '../nodes/node.module';
 import { UsersModule } from '../users/users.module';
 import { GatewayService } from '../gateway/service/gateway.service';
 import { GatewayModule } from '../gateway/gateway.module';
+import { DoorStatus } from './entity/door-status.entity';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { GatewayModule } from '../gateway/gateway.module';
       Nodes,
       CommunicationEvents,
       AvailabilityEvents,
+      DoorStatus,
       IgnoreEvents,
     ]),
     NodeModule,

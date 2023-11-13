@@ -1,12 +1,13 @@
 const dotenv = require('dotenv');
 dotenv.config()
 
-export const CORS_ORIGIN = [process.env.FE_URL, process.env.EDGE_SYSTEM_DOMAIN];
+const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",").map(item => item.trim());
+const allowedMethods = process.env.ALLOWED_METHOD.split(",").map(item => item.trim());
 
 export const CORS = {
-  origin: CORS_ORIGIN,
+  origin: allowedOrigins,
   credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  methods: allowedMethods,
   preflightContinue: false,
 };
 
