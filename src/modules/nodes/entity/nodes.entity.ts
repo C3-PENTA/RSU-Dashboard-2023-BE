@@ -13,8 +13,17 @@ export class Nodes extends AbstractEntity {
   name: string;
 
   @ApiProperty()
-  @Column({ name: 'status', type: 'boolean', nullable: true })
-  status: boolean;
+  @Column({ name: 'status', type: 'integer', nullable: true })
+  status: number;
+
+  @ApiProperty()
+  @Column({
+    name: 'last_alive_at',
+    type: 'timestamptz',
+    nullable: true,
+    default: () => 'now()'
+  })
+  lastAliveAt: Date;
 
   @ApiProperty()
   @Column({ name: 'latitude', type: 'double precision', nullable: true })

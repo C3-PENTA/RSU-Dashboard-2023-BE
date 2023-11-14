@@ -6,7 +6,6 @@ import { NodeService } from 'src/modules/nodes/service/nodes.service';
 import { Repository } from 'typeorm';
 import { enumToKeyValue } from '@util/handleEnumValue';
 import {
-  EdgeSystemConnection,
   EventStatus,
   NetworkStatus,
 } from 'src/constants';
@@ -70,8 +69,6 @@ export class MonitorService {
   ) {
     this.autoRefresh = true;
     this.isCronJobEnabled = false;
-    this.countDisconnect = 0;
-    this.isEdgeConnected = EdgeSystemConnection.Unknown;
   }
 
   setAutoRefresh(state: boolean): void {
@@ -149,36 +146,11 @@ export class MonitorService {
   }
 
   getEdgeKeepAlive(data: IKeepAliveMessage) {
-    if (data.timeStamp) {
-      this.isEdgeConnected = EdgeSystemConnection.Connected;
-      this.countDisconnect = 0;
-    }
-  }
-
-  getStatusKeepAlive() {
-    return {
-      status: this.isEdgeConnected,
-      count: this.countDisconnect,
-    };
+    return this.eventService.parseDataToKeepAlive(data);
   }
 
   getDoorStatus(data: { doorStatus: string }) {
     return this.eventService.parseDataToDoorStatus(data);
-  }
-
-  @Cron('* * * * * *')
-  async keepAliveWithEdgeSystem() {
-    if (this.countDisconnect > 60 && this.countDisconnect <= 180) {
-      this.isEdgeConnected = EdgeSystemConnection.Unknown;
-    } else if (this.countDisconnect > 180) {
-      this.isEdgeConnected = EdgeSystemConnection.Disconnected;
-    }
-
-    this.countDisconnect += 1;
-
-    this.gatewayService.server.emit('keep-alive', {
-      status: this.isEdgeConnected,
-    });
   }
 
   // changeAvailEventProp(prop: AvailEventPropGenInf) {

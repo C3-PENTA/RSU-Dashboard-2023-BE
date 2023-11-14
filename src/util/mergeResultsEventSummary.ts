@@ -41,14 +41,14 @@ export const mergeResults = (
     result.percentTotalCommunication = 100;
 
     if (result.totalAvailabilityNormal + result.totalAvailabilityError == 0) {
-      result.percentAvailabilityError = '-';
-      result.percentAvailabilityNormal = '-';
-      result.percentTotalAvailability = '-';
+      result.percentAvailabilityError = null;
+      result.percentAvailabilityNormal = null;
+      result.percentTotalAvailability = null;
     }
     if (result.totalCommunicationNormal + result.totalCommunicationError == 0) {
-      result.percentCommunicationError = '-';
-      result.percentCommunicationNormal = '-';
-      result.percentTotalCommunication = '-';
+      result.percentCommunicationError = null;
+      result.percentCommunicationNormal = null;
+      result.percentTotalCommunication = null;
     }
 
   });

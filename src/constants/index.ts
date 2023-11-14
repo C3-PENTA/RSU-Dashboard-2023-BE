@@ -60,10 +60,10 @@ export enum NetworkStatus {
   "연결이 끊김" = 2,
 }
 
-export enum EdgeSystemConnection {
-  Connected = "연결됨",
-  Disconnected = "연결이 끊김",
-  Unknown = "Unknown"
+export enum StatusNode {
+  Alive = 0,
+  Disconnected = 2,
+  Unknown = 1
 }
 
 export enum DrivingNegotiationsClass {
