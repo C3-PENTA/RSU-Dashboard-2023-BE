@@ -283,111 +283,94 @@ export class EventsService {
   }
 
   async getEventsSummary(time_range: string) {
-    const availabilityNormal = this.availabilityEventsRepository
-      .createQueryBuilder('avai_events')
-      .select([
-        'node_id as "nodeId"',
-        'nodes.rsu_id as "customId"',
-        'COUNT(node_id) as "totalAvailabilityNormal"',
-      ])
-      .innerJoin(Nodes, 'nodes', 'avai_events.node_id = nodes.id')
-      .where('avai_events.status = 1')
-      .groupBy('avai_events.node_id, nodes.rsu_id');
-
-    const communicationNormal = this.communicationEventsRepository
-      .createQueryBuilder('comm_events')
-      .select([
-        'node_id as "nodeId"',
-        'nodes.rsu_id as "customId"',
-        'COUNT(node_id) as "totalCommunicationNormal"',
-      ])
-      .innerJoin(Nodes, 'nodes', 'comm_events.node_id = nodes.id')
-      .where('comm_events.status = 1')
-      .groupBy('comm_events.node_id, nodes.rsu_id');
-
-    const availabilityError = this.availabilityEventsRepository
-      .createQueryBuilder('avai_events')
-      .select([
-        'node_id as "nodeId"',
-        'nodes.rsu_id as "customId"',
-        'COUNT(node_id) as "totalAvailabilityError"',
-      ])
-      .innerJoin(Nodes, 'nodes', 'avai_events.node_id = nodes.id')
-      .where('avai_events.status = 2')
-      .groupBy('avai_events.node_id, nodes.rsu_id');
-
-    const communicationError = this.communicationEventsRepository
-      .createQueryBuilder('comm_events')
-      .select([
-        'node_id as "nodeId"',
-        'nodes.rsu_id as "customId"',
-        'COUNT(node_id) as "totalCommunicationError"',
-      ])
-      .innerJoin(Nodes, 'nodes', 'comm_events.node_id = nodes.id')
-      .where('comm_events.status = 2')
-      .groupBy('comm_events.node_id, nodes.rsu_id');
-
     const hourAgo = new Date(new Date().getTime() - 60 * 60 * 1000);
+
+    const availabilityNormal = this.NodesRepo.createQueryBuilder('n')
+      .select([
+        'n.id as "nodeId"',
+        'n.rsu_id as "customId"',
+        'COUNT(ae.node_id) as "totalAvailabilityNormal"',
+      ])
+      .leftJoin(
+        AvailabilityEvents,
+        'ae',
+        'n.id = ae.node_id AND ae.status = 1 AND ae.created_at > :timestamp',
+        {
+          timestamp: hourAgo,
+        },
+      )
+      .groupBy('n.id, n.rsu_id');
+
+    const communicationNormal = this.NodesRepo.createQueryBuilder('n')
+      .select([
+        'n.id as "nodeId"',
+        'n.rsu_id as "customId"',
+        'COUNT(ce.node_id) as "totalCommunicationNormal"',
+      ])
+      .leftJoin(
+        CommunicationEvents,
+        'ce',
+        'ce.node_id = n.id AND ce.status = 1 AND ce.created_at > :timestamp',
+        {
+          timestamp: hourAgo,
+        },
+      )
+      .groupBy('n.id, n.rsu_id');
+
+    const availabilityError = this.NodesRepo.createQueryBuilder('n')
+      .select([
+        'n.id as "nodeId"',
+        'n.rsu_id as "customId"',
+        'COUNT(ae.node_id) as "totalAvailabilityError"',
+      ])
+      .leftJoin(
+        AvailabilityEvents,
+        'ae',
+        'n.id = ae.node_id AND ae.status = 2 AND ae.created_at > :timestamp',
+        {
+          timestamp: hourAgo,
+        },
+      )
+      .groupBy('n.id, n.rsu_id');
+
+    const communicationError = this.NodesRepo.createQueryBuilder('n')
+      .select([
+        'n.id as "nodeId"',
+        'n.rsu_id as "customId"',
+        'COUNT(ce.node_id) as "totalCommunicationError"',
+      ])
+      .leftJoin(
+        CommunicationEvents,
+        'ce',
+        'ce.node_id = n.id AND ce.status = 2 AND ce.created_at > :timestamp',
+        {
+          timestamp: hourAgo,
+        },
+      )
+      .groupBy('n.id, n.rsu_id');
 
     let summary: any[] = [];
 
-    if (time_range === 'all') {
-      const [
-        availabilityNormalEvents,
-        availabilityErrorEvents,
-        communicationNormalEvents,
-        communicationErrorEvents,
-      ] = await Promise.all([
-        availabilityNormal.getRawMany(),
-        availabilityError.getRawMany(),
-        communicationNormal.getRawMany(),
-        communicationError.getRawMany(),
-      ]);
+    const [
+      availabilityNormalEvents,
+      availabilityErrorEvents,
+      communicationNormalEvents,
+      communicationErrorEvents,
+    ] = await Promise.all([
+      availabilityNormal.getRawMany(),
+      availabilityError.getRawMany(),
+      communicationNormal.getRawMany(),
+      communicationError.getRawMany(),
+    ]);
 
-      const mergedResults = mergeResults(
-        availabilityNormalEvents,
-        availabilityErrorEvents,
-        communicationNormalEvents,
-        communicationErrorEvents,
-      );
-      summary = Array.from(mergedResults.values());
-    } else if (time_range === 'hour_ago') {
-      const [
-        availabilityNormalEvents,
-        availabilityErrorEvents,
-        communicationNormalEvents,
-        communicationErrorEvents,
-      ] = await Promise.all([
-        availabilityNormal
-          .andWhere('avai_events.created_at > :timestamp', {
-            timestamp: hourAgo,
-          })
-          .getRawMany(),
-        availabilityError
-          .andWhere('avai_events.created_at > :timestamp', {
-            timestamp: hourAgo,
-          })
-          .getRawMany(),
-        communicationNormal
-          .andWhere('comm_events.created_at > :timestamp', {
-            timestamp: hourAgo,
-          })
-          .getRawMany(),
-        communicationError
-          .andWhere('comm_events.created_at > :timestamp', {
-            timestamp: hourAgo,
-          })
-          .getRawMany(),
-      ]);
+    const mergedResults = mergeResults(
+      availabilityNormalEvents,
+      availabilityErrorEvents,
+      communicationNormalEvents,
+      communicationErrorEvents,
+    );
 
-      const mergedResults = mergeResults(
-        availabilityNormalEvents,
-        availabilityErrorEvents,
-        communicationNormalEvents,
-        communicationErrorEvents,
-      );
-      summary = Array.from(mergedResults.values());
-    }
+    summary = Array.from(mergedResults.values());
 
     return { summary };
   }
@@ -417,6 +400,7 @@ export class EventsService {
       SELECT
         n.id AS "nodeID",
         n.rsu_id AS "rsuID",
+        n.status AS "nodeStatus",
         n.name AS "rsuName",
         le.cpu_usage AS "cpuUsage",
         le.cpu_temp AS "cpuTemp",
@@ -439,13 +423,15 @@ export class EventsService {
         nodeID: e.nodeID,
         rsuID: e.rsuID,
         rsuName: e.rsuName,
+        nodeStatus: e.nodeStatus,
         cpuUsage: e.cpuUsage,
         cpuTemp: e.cpuTemp,
         ramUsage: e.ramUsage,
         diskUsage: e.diskUsage,
         networkSpeed: e.networkSpeed,
         networkUsage: e.networkUsage,
-        networkStatus: NetworkStatus[e.networkStatus],
+        networkStatus:
+          e.networkStatus != null ? NetworkStatus[e.networkStatus] : null,
         createdAt: e.createdAt,
       };
     });
@@ -985,20 +971,23 @@ export class EventsService {
             fromDate.setDate(fromDate.getDate() - 30);
             now.setDate(now.getDate() + 1);
 
+            fromDate.setHours(0, 0, 0, 0);
+            now.setHours(0, 0, 0, 0);
+
             rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('event')
               .select(
                 `DATE(event.created_at) AS timestamp, AVG(event.${type}_usage) AS average`,
               )
               .where(
-                'event.node_id = :rsuId AND event.created_at >= :fromDate  AND event.created_at <= :now',
-                { rsuId: rsu.id, fromDate, now },
+                'event.node_id = :rsuId AND event.created_at >= :fromDate',
+                { rsuId: rsu.id, fromDate },
               )
               .groupBy('DATE(event.created_at)')
               .orderBy('timestamp')
               .execute()) as Promise<{ date: string; average: number }[]>;
-            
-            // rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
+
+            rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
           }
           // Last 24 hours
           if (period === 'date') {
@@ -1011,8 +1000,8 @@ export class EventsService {
                 `DATE_TRUNC('hour', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`,
               )
               .where(
-                'usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now',
-                { rsuId: rsu.id, fromDate, now },
+                'usage.node_id = :rsuId AND usage.created_at >= :fromDate',
+                { rsuId: rsu.id, fromDate },
               )
               .groupBy("DATE_TRUNC('hour', usage.created_at)")
               .orderBy('timestamp')
@@ -1022,9 +1011,8 @@ export class EventsService {
           }
           // Last 60 minutes
           if (period === 'hour') {
-
             fromDate.setMinutes(fromDate.getMinutes() - 60);
-            now.setMinutes(now.getMinutes() + 2)
+            now.setMinutes(now.getMinutes() + 2);
 
             rsuUsage = (await this.availabilityEventsRepository
               .createQueryBuilder('usage')
@@ -1032,13 +1020,13 @@ export class EventsService {
                 `DATE_TRUNC('minute', usage.created_at) AS timestamp, AVG(usage.${type}_usage) AS average`,
               )
               .where(
-                'usage.node_id = :rsuId AND usage.created_at >= :fromDate AND usage.created_at <= :now',
-                { rsuId: rsu.id, fromDate, now },
+                'usage.node_id = :rsuId AND usage.created_at >= :fromDate',
+                { rsuId: rsu.id, fromDate },
               )
               .groupBy("DATE_TRUNC('minute', usage.created_at)")
               .orderBy('timestamp')
               .execute()) as Promise<{ minute: string; average: number }[]>;
-            
+
             rsuUsage = spreadDataWithTimeStamp(rsuUsage, fromDate, now, period);
           }
 
@@ -1057,23 +1045,11 @@ export class EventsService {
   }
 
   async parseDataToAvailEvent(message: any) {
-    let node = await this.nodeService.findOne({ rsuID: message.nodeID });
+    const node = await this.nodeService.findOne({ rsuID: message.nodeID });
 
-    if (!node) {
-      node = new Nodes();
-      node.rsuID = message.nodeID;
-    }
-    node.name = message.rsuName ?? null;
-    node.latitude = message.latitude ?? null;
-    node.longitude = message.longitude ?? null;
+    const event = new AvailabilityEvents();
 
-    const result = await this.NodesRepo.save(node);
-
-    let event = new AvailabilityEvents();
-    event.nodeId = result.id;
-    if (message.timeStamp) {
-      event.createdAt = convertUnixToFormat(message.timeStamp);
-    }
+    event.nodeId = node.id;
     event.cpuUsage = message.cpuUsage;
     event.cpuTemp = message.cpuTemperature;
     event.ramUsage = message.ramUsage;
@@ -1083,70 +1059,86 @@ export class EventsService {
       message.networkSpeed != null ? message.networkSpeed : null;
     event.networkUsage =
       message.networkUsage != null ? message.networkUsage : null;
+
+    if (message.timeStamp) {
+      event.createdAt = convertUnixToFormat(message.timeStamp);
+    }
+
     event.detail = await this.defineErrorMessage(1, event);
+
     event.status = event.detail.length > 0 ? 2 : 1;
+
     return event;
   }
 
-  async parseDataToCommEvent(data: any) {
+  async parseDataToCommEvent(data: any): Promise<CommunicationEvents[]> {
     const messageList = data.messageList;
-
     const nodeIDMap = (await this.nodeService.getMapNodeList()).customMap;
-
-    const eventList = [];
+    const eventList: CommunicationEvents[] = [];
 
     for (let message of messageList) {
-      let nodeID = nodeIDMap.get(message.nodeID);
-      if (!nodeID) {
-        nodeID = (
-          await this.nodeService.createNode({
-            rsuID: message.nodeID,
-            name: message.rsuName,
-          })
-        ).id;
-        nodeIDMap.set(message.nodeID, nodeID);
+      try {
+        const nodeID = nodeIDMap.get(message.nodeID);
+        const srcNodeID = nodeIDMap.get(message.senderNodeID);
+        const destNodeID =
+          message.receiverNodeID !== 'B'
+            ? nodeIDMap.get(message.receiverNodeID)
+            : null;
+
+        if (!nodeID) {
+          throw new Error(`NodeID not found for RSU: ${message.nodeID}`);
+        }
+
+        if (!srcNodeID) {
+          throw new Error(
+            `senderNodeID not found for RSU: ${message.senderNodeID}`,
+          );
+        }
+
+        if (!destNodeID && message.receiverNodeID !== 'B') {
+          throw new Error(
+            `receiverNodeID not found for RSU: ${message.receiverNodeID}`,
+          );
+        }
+
+        const event = new CommunicationEvents();
+        event.nodeId = nodeID;
+        event.cooperationClass = message.cooperationClass;
+        event.sessionId = message.sessionID;
+        event.messageType = message.messageType;
+        event.method = message.communicationType;
+        event.communicationClass = message.communicationClass;
+        event.destNode = destNodeID;
+        event.srcNode = srcNodeID;
+        event.detail = '';
+        event.status = event.detail.length > 0 ? 2 : 1;
+        eventList.push(event);
+      } catch (error) {
+        // Handle or log the error for the specific event, and continue with the loop
+        console.error(
+          `Error processing event: ${JSON.stringify(message)}`,
+          error,
+        );
       }
-
-      let srcNodeID = nodeIDMap.get(message.senderNodeID);
-      if (!srcNodeID) {
-        srcNodeID = (
-          await this.nodeService.createNode({ rsuID: message.senderNodeID })
-        ).id;
-        nodeIDMap.set(message.senderNodeID, srcNodeID);
-      }
-
-      let destNodeID = nodeIDMap.get(message.receiverNodeID);
-      if (!destNodeID && message.receiverNodeID !== 'B') {
-        destNodeID = (
-          await this.nodeService.createNode({ rsuID: message.receiverNodeID })
-        ).id;
-        nodeIDMap.set(message.receiverNodeID, destNodeID);
-      }
-
-      const event = new CommunicationEvents();
-      if (message.timeStamp) {
-        event.createdAt = convertUnixToFormat(message.timeStamp);
-      }
-      event.nodeId = nodeID;
-      event.cooperationClass = message.cooperationClass;
-      event.sessionId = message.sessionID;
-      event.messageType = message.messageType;
-      event.method = message.communicationType;
-      event.communicationClass = message.communicationClass;
-
-      event.destNode = message.receiverNodeID != 'B' ? destNodeID : null;
-
-      event.srcNode = message.senderNodeID != 'B' ? srcNodeID : null;
-      event.detail = '';
-      event.status = event.detail.length > 0 ? 2 : 1;
-      eventList.push(event);
     }
 
     return eventList;
   }
 
+  async parseDataToKeepAlive(message: any) {
+    const node = await this.nodeService.findOne({ rsuID: message.nodeID });
+    await this.NodesRepo.createQueryBuilder()
+      .update(Nodes)
+      .set({
+        status: 0,
+        lastAliveAt: convertUnixToFormat(message.timeStamp),
+      })
+      .where('id = :id', { id: node.id })
+      .execute();
+  }
+
   async parseDataToDoorStatus(message: any) {
-    const doorStatus = new DoorStatus;
+    const doorStatus = new DoorStatus();
     doorStatus.status = message.doorStatus;
     doorStatus.createdAt = convertUnixToFormat(message.timestamp);
     await this.doorStatusRepository.save(doorStatus);
@@ -1154,13 +1146,13 @@ export class EventsService {
 
   async getDoorStatusInfoList(page: number, limit: number) {
     const queryBuilder = this.doorStatusRepository
-    .createQueryBuilder('door_status')
-    .select([
-      'door_status.id as id',
-      'door_status.status as status',
-      'door_status.created_at as timestamp',
-    ])
-    .orderBy('door_status.created_at', 'DESC')
+      .createQueryBuilder('door_status')
+      .select([
+        'door_status.id as id',
+        'door_status.status as status',
+        'door_status.created_at as timestamp',
+      ])
+      .orderBy('door_status.created_at', 'DESC');
 
     const result = await queryBuilder
       .limit(limit)
@@ -1279,18 +1271,25 @@ export class EventsService {
     const now = new Date();
     const fromDate = new Date();
 
-    fromDate.setDate(fromDate.getDate() - 30);
+    fromDate.setDate(fromDate.getDate() - 29);
     now.setDate(now.getDate() + 1);
+
+    fromDate.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    
     return generateTimestamps(fromDate, now, 'month');
   }
-
 }
 
-const generateTimestamps = (fromDate: Date, now: Date, type: string): Date[] => {
+const generateTimestamps = (
+  fromDate: Date,
+  now: Date,
+  type: string,
+): Date[] => {
   const timestamps: Date[] = [];
   let currentTimestamp = new Date(fromDate);
 
-  while (currentTimestamp <= now) {    
+  while (currentTimestamp <= now) {
     if (type == 'hour') {
       currentTimestamp.setMinutes(currentTimestamp.getMinutes() + 0, 0, 0);
     } else if (type == 'date') {
@@ -1298,7 +1297,7 @@ const generateTimestamps = (fromDate: Date, now: Date, type: string): Date[] => 
     } else {
       currentTimestamp.setDate(currentTimestamp.getDate() + 0);
     }
-    
+
     const timestamp = new Date(currentTimestamp);
     timestamps.push(timestamp);
 
@@ -1314,7 +1313,12 @@ const generateTimestamps = (fromDate: Date, now: Date, type: string): Date[] => 
   return timestamps;
 };
 
-const spreadDataWithTimeStamp = (rsuUsage: any, startDate: Date, endDate: Date, type: string) => {
+const spreadDataWithTimeStamp = (
+  rsuUsage: any,
+  startDate: Date,
+  endDate: Date,
+  type: string,
+) => {
   const timestamp = generateTimestamps(startDate, endDate, type);
   const resultMap = new Map(
     rsuUsage.map((entry) => [String(entry.timestamp), entry]),
@@ -1322,10 +1326,8 @@ const spreadDataWithTimeStamp = (rsuUsage: any, startDate: Date, endDate: Date, 
 
   rsuUsage = timestamp.map((ts) => {
     const resultEntry = resultMap.get(String(ts));
-    return resultEntry
-      ? resultEntry
-      : { timestamp: ts, average: null };
+    return resultEntry ? resultEntry : { timestamp: ts, average: null };
   });
 
   return rsuUsage;
-}
+};

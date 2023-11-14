@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { CORS, EdgeSystemConnection } from 'src/constants';
+import { CORS } from 'src/constants';
 
 @WebSocketGateway({
   cors: CORS,
@@ -44,29 +44,4 @@ export class GatewayService
     this.socketClients.set(String(client.handshake.headers.node_id), client.id);
     console.log('Connection', this.socketClients);
   }
-
-//   @SubscribeMessage('edge-status')
-//   async handleEdgeStatus(client: any, data: any) {
-//     console.log("Received data", data);
-//     const event = await this.eventService.parseDataToAvaiEvent(data);
-//     console.log("Availability Event: ", event);
-//     await this.eventService.saveEvent(1, event);
-//   }
-
-//   @SubscribeMessage('edge-message')
-//   async handleEdgeMessage(client: any, data: any) {
-//     console.log("Received data: ", data);
-//     const events = await this.eventService.parseDataToCommEvent(data);
-//     console.log("Communication Event: ", events);
-//     await this.eventService.saveEvent(2, events);
-//   }
-
-//   @SubscribeMessage('keep-alive')
-//   async handleKeepAlive(client: any, data: any) {
-//     console.log("Received data", data);
-//     if (data.timeStamp) {
-//       this.monitorService.setStatusKeepAlive(EdgeSystemConnection.Connected);
-//       this.monitorService.setCountDisconnect(0);
-//     }
-//   }
 }
